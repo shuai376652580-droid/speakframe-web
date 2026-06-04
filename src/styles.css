@@ -159,10 +159,11 @@ nav { display: grid; gap: 18px; }
 .select-panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
 .select-panel h3 { margin: 0; }
 .select-panel-header p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
-.select-list { overflow: auto; padding-right: 4px; display: grid; gap: 10px; }
-.select-asset { width: 100%; border: 1px solid var(--line); background: #fffaf3; border-radius: 15px; padding: 13px; display: flex; justify-content: space-between; align-items: center; text-align: left; cursor: pointer; }
-.select-asset strong { display: block; margin-bottom: 4px; }
-.select-asset span { color: var(--muted); font-size: 13px; }
+.select-list { overflow: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.select-asset { width: 100%; min-height: 72px; border: 1px solid var(--line); background: #fffaf3; border-radius: 15px; padding: 12px 13px; display: grid; grid-template-columns: minmax(0, 1fr) 18px; gap: 10px; align-items: center; text-align: left; cursor: pointer; flex: 0 0 auto; }
+.select-asset > div { min-width: 0; }
+.select-asset strong { display: -webkit-box; margin-bottom: 5px; line-height: 1.28; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.select-asset span { display: -webkit-box; color: var(--muted); font-size: 13px; line-height: 1.35; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
 .select-asset.selected { background: var(--primary-soft); border-color: #e2b894; }
 .select-asset:disabled { opacity: .45; cursor: not-allowed; }
 .goal-selector { border: 1px solid var(--line); background: #fffaf3; border-radius: 18px; padding: 14px; margin-bottom: 14px; }
@@ -229,7 +230,7 @@ nav { display: grid; gap: 18px; }
 .listen-settings label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 800; }
 .listen-settings input[type="range"] { width: 100%; }
 .listen-settings select { border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; background: white; outline: 0; }
-.listen-source-list { max-height: calc(100vh - 520px); min-height: 260px; overflow: auto; display: grid; gap: 10px; padding-right: 4px; }
+.listen-source-list { max-height: calc(100vh - 520px); min-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
 .listen-now { border: 1px solid #ead8c5; background: #fff8ef; border-radius: 20px; padding: 18px; margin-bottom: 14px; }
 .listen-now h2 { margin: 0; font-size: 28px; }
 .listen-now p:not(.eyebrow) { margin: 10px 0 0; font-size: 22px; line-height: 1.55; color: var(--text); }

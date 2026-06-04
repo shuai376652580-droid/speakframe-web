@@ -68,6 +68,12 @@ const PRACTICE_GOALS = [
     keywords: ['growth', 'change', 'realize', 'feeling', 'reflect', 'time'],
   },
   {
+    id: 'daily-small-talk',
+    label: 'Daily Life Small Talk',
+    purpose: 'Tell a small everyday moment clearly: setup, tiny detail, feeling, reaction, and follow-up.',
+    keywords: ['daily', 'small talk', 'life', 'story', 'feeling', 'coffee', 'weekend', 'conversation'],
+  },
+  {
     id: 'workplace-communication',
     label: 'Workplace Communication',
     purpose: 'Communicate clearly in meetings, support, sales, and collaboration.',
@@ -286,6 +292,19 @@ function getRecommendedCombo(assets, goalId) {
   }
 
   return picked.slice(0, MAX_RECOMBINE_ASSETS);
+}
+
+function getAssetListenText(asset) {
+  const examples = toTextArray(asset?.examples).slice(0, 2);
+  const parts = [
+    toText(asset?.sourceSentence),
+    examples.join(' '),
+    toText(asset?.rootPattern),
+    toText(asset?.notes),
+  ].filter(Boolean);
+
+  const uniqueParts = [...new Set(parts)];
+  return uniqueParts.join(' ') || toText(asset?.text);
 }
 
 function friendlyErrorMessage(value, fallback) {
@@ -1909,7 +1928,7 @@ function StructurePage({
     <section className="page">
       <PageHeader
         title="Structure Practice"
-        subtitle="Train expression architecture and the ability to move from a big idea into smaller, speakable details."
+        subtitle="Build reusable speaking frames: one stable paragraph that can explain an idea, tell a small story, or describe a daily moment clearly."
       />
 
       <div className="structure-layout">
@@ -1931,7 +1950,7 @@ function StructurePage({
             <textarea
               className="structure-topic"
               value={structureTopic}
-              placeholder="Example: I think technical sales fits me, but I do not know how to explain it."
+              placeholder="Example: A small annoying thing happened at a coffee shop. Help me turn it into a reusable small-talk story frame."
               onChange={(e) => setStructureTopic(e.target.value)}
             />
           </div>
@@ -1950,8 +1969,8 @@ function StructurePage({
         <div className="structure-output">
           {!structurePlan ? (
             <EmptyState
-              title="Build a big-to-small expression"
-              text="Enter one idea, then generate a layered structure you can study, modify, and save."
+              title="Build a reusable paragraph frame"
+              text="Enter one idea or small story. The system will turn it into a stable spoken structure you can swap words in and reuse."
             />
           ) : (
             <>
@@ -2147,7 +2166,7 @@ function ListenPage({ assets, practice, structurePlan }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [rate, setRate] = useState(0.9);
+  const [rate, setRate] = useState(1);
   const [loopCount, setLoopCount] = useState(3);
   const [showText, setShowText] = useState(true);
   const [includeMeaning, setIncludeMeaning] = useState(false);
@@ -2157,10 +2176,10 @@ function ListenPage({ assets, practice, structurePlan }) {
   const assetItems = useMemo(() => {
     return (Array.isArray(assets) ? assets : []).map((asset) => ({
       id: asset.id,
-      label: toText(asset.type) || 'Asset',
-      text: toText(asset.text),
+      label: toText(asset.text) || toText(asset.type) || 'Asset',
+      text: getAssetListenText(asset),
       meaning: toText(asset.meaning),
-      meta: toText(asset.expressionFunction) || toText(asset.functionName),
+      meta: `${toText(asset.type) || 'Asset'}${toText(asset.expressionFunction) || toText(asset.functionName) ? ` - ${toText(asset.expressionFunction) || toText(asset.functionName)}` : ''}`,
     })).filter((item) => item.text);
   }, [assets]);
 
@@ -2361,14 +2380,16 @@ function ListenPage({ assets, practice, structurePlan }) {
           <div className="listen-settings">
             <label>
               Speed
-              <input
-                type="range"
-                min="0.65"
-                max="1.15"
-                step="0.05"
+              <select
                 value={rate}
                 onChange={(e) => setRate(e.target.value)}
-              />
+              >
+                <option value="0.3">0.3x slow study</option>
+                <option value="0.5">0.5x careful</option>
+                <option value="1">1.0x normal</option>
+                <option value="1.3">1.3x faster</option>
+                <option value="1.5">1.5x challenge</option>
+              </select>
               <span>{Number(rate).toFixed(2)}x</span>
             </label>
 
@@ -2414,8 +2435,8 @@ function ListenPage({ assets, practice, structurePlan }) {
                     onClick={() => toggleAsset(item.id)}
                   >
                     <div>
-                      <strong>{item.text}</strong>
-                      <span>{item.label} - {item.meta || 'Expression asset'}</span>
+                      <strong>{item.label}</strong>
+                      <span>{item.meta || 'Expression asset'}</span>
                     </div>
                     <ChevronRight size={17} />
                   </button>

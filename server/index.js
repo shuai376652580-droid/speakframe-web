@@ -733,8 +733,8 @@ app.post("/api/structure-practice", async (req, res) => {
 You are SpeakFrame's expression structure coach.
 
 The learner needs two abilities:
-1. Expression architecture: organize an idea into a clear speaking structure.
-2. Big-to-small expression: move from a broad idea to concrete details, examples, and a takeaway.
+1. Reusable expression architecture: build a stable paragraph frame the learner can reuse by swapping words, chunks, or examples.
+2. Big-to-small expression: explain one idea, daily moment, opinion, or small story through concrete details and a takeaway.
 
 User topic or rough idea:
 ${topic}
@@ -771,13 +771,15 @@ JSON format:
 
 Rules:
 1. Create 5 layers: Big Point, Reason, Smaller Detail, Example, Takeaway.
-2. Each layer must contain one natural B1-B2 English sentence the learner can say.
-3. The layers must clearly move from broad idea to smaller, concrete detail.
+2. Each layer must contain one natural B1-B2 English sentence the learner can say and reuse.
+3. The layers must clearly move from broad idea to smaller, concrete detail, then back to a simple takeaway.
 4. recommendedAssets should include exact saved asset texts when useful, otherwise useful new chunks.
-5. sampleAnswer must combine all layers into one short spoken answer.
-6. Keep the style natural, practical, and reusable for Chinese learners.
-7. Do not give grammar explanation.
-8. If the user writes Chinese, still return English sentences, with concise structure labels.
+5. sampleAnswer must combine all layers into one short spoken paragraph that explains one thing clearly.
+6. practicePrompt should tell the learner how to reuse the frame by changing the topic, nouns, verbs, details, and ending.
+7. Prefer everyday, small-talk-friendly language unless the practice goal is clearly professional.
+8. Keep the style natural, practical, and reusable for Chinese learners.
+9. Do not give grammar explanation.
+10. If the user writes Chinese, still return English sentences, with concise structure labels.
 `);
 
     const data = safeParseJson(rawText);
@@ -1025,11 +1027,11 @@ JSON format:
 
 Rules:
 1. Create one realistic speaking or writing task for the practice goal.
-2. The scenario must fit interview, workplace, daily communication, technical support, or sales.
+2. The scenario must fit interview, workplace, daily life small talk, technical support, sales, or personal reflection.
 3. The question should make the learner use the selected assets naturally.
 4. mustUse must include the exact selected asset texts.
 5. sampleAnswer should use B1-B2 English.
-6. sampleAnswer should follow clear logic: main idea -> reason -> detail -> result/value.
+6. sampleAnswer should follow a reusable paragraph flow: setup/main idea -> reason/feeling -> concrete detail/example -> result/takeaway.
 7. Keep the task practical, not like a school essay.
 8. Explain the goal through scenario and question, not with meta commentary.
 `);
