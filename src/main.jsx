@@ -124,6 +124,22 @@ function saveAssets(assets) {
   localStorage.setItem('speakframe_assets', JSON.stringify(Array.isArray(assets) ? assets : []));
 }
 
+async function readApiJson(res, fallbackMessage = 'API request failed') {
+  const contentType = res.headers.get('content-type') || '';
+  const rawText = await res.text();
+
+  if (!contentType.includes('application/json')) {
+    const preview = rawText.replace(/\s+/g, ' ').trim().slice(0, 120);
+    throw new Error(`${fallbackMessage}. The server returned a non-JSON response${preview ? `: ${preview}` : '.'}`);
+  }
+
+  try {
+    return rawText ? JSON.parse(rawText) : {};
+  } catch {
+    throw new Error(`${fallbackMessage}. The server returned invalid JSON.`);
+  }
+}
+
 async function syncAssetsToDb(assets) {
   const safeAssets = Array.isArray(assets) ? assets : [];
 
@@ -132,7 +148,7 @@ async function syncAssetsToDb(assets) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ assets: safeAssets }),
   });
-  const data = await res.json().catch(() => ({}));
+  const data = await readApiJson(res, 'Asset database sync failed');
 
   if (!res.ok || data.error) {
     throw new Error(data.detail || data.error || 'Asset database sync failed');
@@ -362,7 +378,7 @@ function App() {
     async function loadAssetsFromDb() {
       try {
         const res = await fetch(`${API_BASE}/api/assets`);
-        const data = await res.json();
+        const data = await readApiJson(res, 'Assets load failed');
 
         if (!res.ok || data.error || cancelled) {
           return;
@@ -448,7 +464,7 @@ function App() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Conversation API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Conversation API failed');
@@ -529,7 +545,7 @@ function App() {
         body: JSON.stringify({ sentence }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Insight API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Insight API failed');
@@ -590,7 +606,7 @@ function App() {
         body: JSON.stringify({ url: safeUrl }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Video asset API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Video asset API failed');
@@ -656,7 +672,7 @@ function App() {
         body: JSON.stringify({ assets: contextAssets, practiceGoal }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Daily recommendation API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Daily recommendation API failed');
@@ -749,7 +765,7 @@ function App() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Structure API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Structure API failed');
@@ -921,7 +937,7 @@ function App() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Live practice API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Live practice API failed');
@@ -1045,7 +1061,7 @@ function App() {
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Live summary API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Live summary API failed');
@@ -1118,7 +1134,7 @@ function App() {
         body: JSON.stringify({ assets: selected, practiceGoal }),
       });
 
-      const data = await res.json();
+      const data = await readApiJson(res, 'Recombination API failed');
 
       if (!res.ok || data.error) {
         throw new Error(data.detail || data.error || 'Recombination API failed');
@@ -2741,6 +2757,7 @@ function EmptyState({ title, text }) {
 }
 
 createRoot(document.getElementById('root')).render(<App />);
+
 
 
 
