@@ -42,7 +42,7 @@ const ASSET_TYPES = [
   'Useful Sentence',
   'Poetic Expression',
 ];
-const PRACTICE_GOALS = [
+const ASSET_GOALS = [
   {
     id: 'explain-opinion',
     label: 'Explain Opinion',
@@ -86,6 +86,10 @@ const PRACTICE_GOALS = [
     keywords: ['growth', 'change', 'realize', 'feeling', 'reflect', 'time'],
   },
 ];
+
+const PRACTICE_GOALS = ASSET_GOALS.filter((goal) =>
+  ['job-search-interview', 'workplace-communication', 'daily-small-talk', 'personal-reflection'].includes(goal.id)
+);
 
 const initialMessages = [
   {
@@ -283,6 +287,10 @@ function normalizeAssetList(items, defaults = {}) {
   return items.map((item) => normalizeAsset(item, defaults)).filter((asset) => asset.text);
 }
 
+function getAssetGoal(goalId) {
+  return ASSET_GOALS.find((goal) => goal.id === goalId) || ASSET_GOALS[0];
+}
+
 function getPracticeGoal(goalId) {
   return PRACTICE_GOALS.find((goal) => goal.id === goalId) || PRACTICE_GOALS[0];
 }
@@ -444,6 +452,7 @@ function App() {
   const [insight, setInsight] = useState(null);
   const [assets, setAssets] = useState(loadAssets);
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
+  const [assetGoal, setAssetGoal] = useState(ASSET_GOALS[0].id);
   const [practiceGoal, setPracticeGoal] = useState(PRACTICE_GOALS[0].id);
   const [practice, setPractice] = useState(null);
   const [structureTopic, setStructureTopic] = useState('');
@@ -769,7 +778,7 @@ function App() {
       const res = await fetch(`${API_BASE}/api/daily-recommendations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assets: contextAssets, practiceGoal }),
+        body: JSON.stringify({ assets: contextAssets, practiceGoal: assetGoal }),
       });
 
       const data = await readApiJson(res, 'Daily recommendation API failed');
@@ -784,7 +793,7 @@ function App() {
         expressionFunction: 'Daily connected expression',
         rootPattern: 'Reusable daily expression',
         notes: 'Daily recommendation for connected output practice.',
-        theme: toText(data.theme) || getPracticeGoal(practiceGoal).label,
+        theme: toText(data.theme) || getAssetGoal(assetGoal).label,
       });
 
       if (generatedAssets.length === 0) {
@@ -1306,8 +1315,8 @@ function App() {
             videoLoading={videoLoading}
             generateDailyAssets={generateDailyAssets}
             dailyLoading={dailyLoading}
-            practiceGoal={practiceGoal}
-            setPracticeGoal={setPracticeGoal}
+            assetGoal={assetGoal}
+            setAssetGoal={setAssetGoal}
           />
         )}
 
@@ -1659,8 +1668,8 @@ function AssetsPage({
   videoLoading,
   generateDailyAssets,
   dailyLoading,
-  practiceGoal,
-  setPracticeGoal,
+  assetGoal,
+  setAssetGoal,
 }) {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -1745,8 +1754,8 @@ function AssetsPage({
         </div>
 
         <div className="daily-actions">
-          <select value={practiceGoal} onChange={(e) => setPracticeGoal(e.target.value)}>
-            {PRACTICE_GOALS.map((goal) => (
+          <select value={assetGoal} onChange={(e) => setAssetGoal(e.target.value)}>
+            {ASSET_GOALS.map((goal) => (
               <option key={goal.id} value={goal.id}>
                 {goal.label}
               </option>
