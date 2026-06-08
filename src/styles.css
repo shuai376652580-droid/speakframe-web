@@ -185,6 +185,9 @@ nav { display: grid; gap: 18px; }
 .structure-hero { border: 1px solid #ead8c5; background: #fff8ef; border-radius: 18px; padding: 16px; margin-bottom: 14px; }
 .structure-hero h2 { margin: 0; font-size: 26px; }
 .structure-hero p:not(.eyebrow) { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
+.structure-section { border: 1px solid #ead8c5; background: #fffaf3; border-radius: 18px; padding: 16px; margin-bottom: 14px; }
+.structure-section h3 { margin: 0 0 8px; font-size: 20px; }
+.structure-section p:not(.eyebrow) { margin: 0 0 12px; color: var(--muted); line-height: 1.5; }
 .structure-path { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .structure-path span { border: 1px solid var(--line); background: #fff8ef; color: #4f4036; border-radius: 999px; padding: 8px 11px; font-size: 13px; font-weight: 800; }
 .structure-layers { display: grid; gap: 12px; margin-bottom: 18px; }
@@ -193,6 +196,14 @@ nav { display: grid; gap: 18px; }
 .structure-layer h3 { margin: 0 0 8px; line-height: 1.35; }
 .structure-layer p:not(.eyebrow) { margin: 0 0 10px; color: var(--muted); line-height: 1.5; }
 .layer-move { border-left: 3px solid #e2b894; padding-left: 10px; margin-bottom: 10px; color: #4f4036; line-height: 1.45; }
+.slot-list { display: grid; gap: 8px; margin: 10px 0; }
+.slot-item { background: #fff8ef; border: 1px solid var(--line); border-radius: 14px; padding: 10px; }
+.slot-item strong { display: block; margin-bottom: 4px; color: #4f4036; }
+.slot-item > span { display: block; color: var(--muted); margin-bottom: 8px; }
+.transfer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.transfer-card { background: #fff8ef; border: 1px solid var(--line); border-radius: 16px; padding: 12px; }
+.transfer-card h3 { margin: 0 0 8px; font-size: 16px; }
+.transfer-card p:not(.eyebrow) { margin: 0 0 10px; color: var(--muted); line-height: 1.45; }
 .structure-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .structure-actions .save-button, .structure-actions .ghost-button { flex: 1; justify-content: center; }
 .live-layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start; }

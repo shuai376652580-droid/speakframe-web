@@ -785,63 +785,136 @@ JSON format:
 {
   "title": "",
   "goal": "",
-  "bigToSmallPath": [],
-  "layers": [
+  "situationType": {
+    "name": "",
+    "whyThisFrame": "",
+    "useWhen": []
+  },
+  "coreFrame": {
+    "name": "",
+    "route": [],
+    "plainExplanation": ""
+  },
+  "highValueSentences": [
     {
-      "name": "",
-      "purpose": "",
       "sentence": "",
-      "smallerMove": "",
-      "recommendedAssets": []
+      "functionName": "",
+      "whyUseful": "",
+      "slots": [
+        {
+          "label": "",
+          "current": "",
+          "swaps": []
+        }
+      ],
+      "scenarios": [],
+      "chunks": []
     }
   ],
-  "sampleAnswer": "",
+  "fullSpokenVersion": "",
+  "transferPractice": [
+    {
+      "scenario": "",
+      "swapFocus": "",
+      "prompt": "",
+      "sampleLine": ""
+    }
+  ],
   "practicePrompt": ""
 }
 
 Rules:
-1. Create 5 layers: Core Frame, Setup, Development, Specific Detail, Result / Next Step.
-2. Each layer must contain one native compressed sentence framework: longer than a tiny sentence, natural, and reusable by swapping words.
-3. Prefer high-value frames like: "I've been thinking about...", "Even though..., I still think...", "At first..., but after..., I started to...", "One thing I find challenging is..., not because..., but because...", "It started as..., but it turned into...", "So my next step is..., even if..., because...".
-4. The layers must help the learner describe a more complex thing clearly, moving from big idea to smaller detail, then to result or next step.
-5. recommendedAssets should include exact saved asset texts when useful, otherwise useful new chunks or slot swaps.
-6. sampleAnswer must combine all layers into one natural spoken paragraph that explains one thing clearly.
-7. practicePrompt should tell the learner how to reuse the frame by changing scene, nouns, verbs, details, and ending.
-8. For job-search-interview and part-time-service-job, include practical language for availability, fit, service attitude, learning, and asking about opportunities.
-9. Keep the style natural, practical, and reusable for Chinese learners. Do not give grammar explanation.
-10. If the user writes Chinese, still return English sentences, with concise structure labels.
+1. First diagnose the expression task. Do not just write an answer. Choose a reusable situation type such as Explain fit and motivation, Describe a complex situation, Tell a small story, Reflect on a change, Ask for an opportunity, Explain a problem, or Describe a process.
+2. coreFrame.route must show the speaking route in 4-6 short move names, for example: Intention -> Limitation -> Strength -> Specific example -> Next step.
+3. highValueSentences must contain 4-6 native compressed sentence frameworks. They should be longer than tiny sentences, natural, and reusable by swapping words.
+4. Prefer high-value frames like: "I've been thinking about...", "Even though..., I still think...", "At first..., but after..., I started to...", "One thing I find challenging is..., not because..., but because...", "It started as..., but it turned into...", "So my next step is..., even if..., because...".
+5. Each highValueSentences item must explain the function, why it is useful, replaceable slots, scenarios, and useful chunks. Make the learner understand when to use the sentence.
+6. fullSpokenVersion must combine these sentences into one natural spoken paragraph that can describe a complex thing clearly.
+7. transferPractice must give 3 scene swaps so the same frame can move to another situation.
+8. For job-search-interview, include practical language for fit, motivation, experience, availability, and asking about opportunities.
+9. Keep the style natural, practical, and reusable for Chinese learners. No grammar lecture.
+10. If the user writes Chinese, still return English sentences, with concise Chinese-friendly labels where helpful.
 `);
 
     const data = safeParseJson(rawText);
-    const layers = Array.isArray(data.layers)
-      ? data.layers
-          .map((layer) => {
-            const safeLayer = layer && typeof layer === "object" ? layer : {};
+    const situationType = data.situationType && typeof data.situationType === "object" ? data.situationType : {};
+    const coreFrame = data.coreFrame && typeof data.coreFrame === "object" ? data.coreFrame : {};
+    const highValueSentences = Array.isArray(data.highValueSentences)
+      ? data.highValueSentences
+          .map((item) => {
+            const safeItem = item && typeof item === "object" ? item : {};
+            const slots = Array.isArray(safeItem.slots)
+              ? safeItem.slots.map((slot) => {
+                  const safeSlot = slot && typeof slot === "object" ? slot : {};
+                  return {
+                    label: toText(safeSlot.label),
+                    current: toText(safeSlot.current),
+                    swaps: toTextArray(safeSlot.swaps),
+                  };
+                })
+              : [];
 
             return {
-              name: toText(safeLayer.name),
-              purpose: toText(safeLayer.purpose),
-              sentence: toText(safeLayer.sentence),
-              smallerMove: toText(safeLayer.smallerMove),
-              recommendedAssets: toTextArray(safeLayer.recommendedAssets),
+              sentence: toText(safeItem.sentence),
+              functionName: toText(safeItem.functionName),
+              whyUseful: toText(safeItem.whyUseful),
+              slots,
+              scenarios: toTextArray(safeItem.scenarios),
+              chunks: toTextArray(safeItem.chunks),
             };
           })
-          .filter((layer) => layer.sentence)
+          .filter((item) => item.sentence)
       : [];
 
-    if (layers.length === 0) {
+    if (highValueSentences.length === 0) {
       return res.status(422).json({
         error: "No structure generated",
         detail: "I could not generate a usable expression structure yet.",
       });
     }
 
+    const transferPractice = Array.isArray(data.transferPractice)
+      ? data.transferPractice.map((item) => {
+          const safeItem = item && typeof item === "object" ? item : {};
+          return {
+            scenario: toText(safeItem.scenario),
+            swapFocus: toText(safeItem.swapFocus),
+            prompt: toText(safeItem.prompt),
+            sampleLine: toText(safeItem.sampleLine),
+          };
+        })
+      : [];
+
+    const layers = highValueSentences.map((item, index) => ({
+      name: item.functionName || `Move ${index + 1}`,
+      purpose: item.whyUseful,
+      sentence: item.sentence,
+      smallerMove: item.slots
+        .map((slot) => [slot.current, ...slot.swaps.slice(0, 2)].filter(Boolean).join(" -> "))
+        .filter(Boolean)
+        .join("; "),
+      recommendedAssets: item.chunks,
+    }));
+
     res.json({
       title: toText(data.title) || topic,
       goal: toText(data.goal) || practiceGoal,
-      bigToSmallPath: toTextArray(data.bigToSmallPath),
+      situationType: {
+        name: toText(situationType.name),
+        whyThisFrame: toText(situationType.whyThisFrame),
+        useWhen: toTextArray(situationType.useWhen),
+      },
+      coreFrame: {
+        name: toText(coreFrame.name),
+        route: toTextArray(coreFrame.route),
+        plainExplanation: toText(coreFrame.plainExplanation),
+      },
+      highValueSentences,
+      transferPractice,
+      bigToSmallPath: toTextArray(coreFrame.route),
       layers,
-      sampleAnswer: toText(data.sampleAnswer),
+      sampleAnswer: toText(data.fullSpokenVersion),
+      fullSpokenVersion: toText(data.fullSpokenVersion),
       practicePrompt: toText(data.practicePrompt),
     });
   } catch (err) {

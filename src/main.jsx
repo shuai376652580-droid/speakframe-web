@@ -357,20 +357,57 @@ function getAssetListenText(asset) {
   return uniqueParts.join(' ') || toText(asset?.text);
 }
 
+function normalizeStructureSentence(item, index = 0) {
+  const safeItem = item && typeof item === 'object' ? item : {};
+  const rawSlots = Array.isArray(safeItem.slots) ? safeItem.slots : [];
+
+  return {
+    sentence: toText(safeItem.sentence),
+    functionName: toText(safeItem.functionName) || `Move ${index + 1}`,
+    whyUseful: toText(safeItem.whyUseful),
+    slots: rawSlots.map((slot) => {
+      const safeSlot = slot && typeof slot === 'object' ? slot : {};
+
+      return {
+        label: toText(safeSlot.label),
+        current: toText(safeSlot.current),
+        swaps: toTextArray(safeSlot.swaps),
+      };
+    }),
+    scenarios: toTextArray(safeItem.scenarios),
+    chunks: toTextArray(safeItem.chunks),
+  };
+}
+
+function normalizeTransferPractice(item) {
+  const safeItem = item && typeof item === 'object' ? item : {};
+
+  return {
+    scenario: toText(safeItem.scenario),
+    swapFocus: toText(safeItem.swapFocus),
+    prompt: toText(safeItem.prompt),
+    sampleLine: toText(safeItem.sampleLine),
+  };
+}
+
 function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
   if (!structurePlan) return [];
 
   const goal = getPracticeGoal(practiceGoal);
   const layers = Array.isArray(structurePlan.layers) ? structurePlan.layers : [];
+  const highValueSentences = Array.isArray(structurePlan.highValueSentences)
+    ? structurePlan.highValueSentences
+    : [];
   const spokenText = toText(structureDraft) || toText(structurePlan.sampleAnswer);
-  const path = toTextArray(structurePlan.bigToSmallPath);
+  const path = toTextArray(structurePlan.coreFrame?.route || structurePlan.bigToSmallPath);
   const title = toText(structurePlan.title) || 'Reusable speaking frame';
   const sharedScenarios = [
     goal.label,
     'Recombination practice',
     'Speaking practice',
+    toText(structurePlan.situationType?.name),
     ...toTextArray(structurePlan.scenarios),
-  ];
+  ].filter(Boolean);
 
   const framework = normalizeAsset(
     {
@@ -385,13 +422,30 @@ function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
       examples: [spokenText].filter(Boolean),
       tags: ['structure', 'framework', 'recombine', goal.id],
       difficulty: 'B1-B2',
-      theme: toText(structurePlan.goal) || goal.label,
-      notes: toText(structurePlan.practicePrompt) || 'Saved from Structure practice.',
+      theme: toText(structurePlan.coreFrame?.name) || toText(structurePlan.goal) || goal.label,
+      notes:
+        toText(structurePlan.coreFrame?.plainExplanation) ||
+        toText(structurePlan.practicePrompt) ||
+        'Saved from Structure practice.',
     },
     { sourceType: 'Structure' }
   );
 
-  const sentenceAssets = layers
+  const sentenceSource = highValueSentences.length > 0
+    ? highValueSentences.map((item) => ({
+        sentence: item.sentence,
+        name: item.functionName,
+        purpose: item.whyUseful,
+        smallerMove: item.slots
+          .map((slot) => [slot.current, ...slot.swaps.slice(0, 2)].filter(Boolean).join(' -> '))
+          .filter(Boolean)
+          .join('; '),
+        recommendedAssets: item.chunks,
+        scenarios: item.scenarios,
+      }))
+    : layers;
+
+  const sentenceAssets = sentenceSource
     .slice(0, MAX_RECOMBINE_ASSETS - 1)
     .map((layer, index) =>
       normalizeAsset(
@@ -410,7 +464,7 @@ function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
                   ? 'reason'
                   : 'detail',
           rootPattern: toText(layer.sentence),
-          scenarios: sharedScenarios,
+          scenarios: [...sharedScenarios, ...toTextArray(layer.scenarios)],
           examples: [toText(layer.smallerMove), ...toTextArray(layer.recommendedAssets)].filter(Boolean),
           tags: ['structure-sentence', 'native-frame', goal.id],
           difficulty: 'B1-B2',
@@ -890,17 +944,52 @@ function App() {
             recommendedAssets: toTextArray(layer.recommendedAssets),
           }))
         : [];
+      const highValueSentences = Array.isArray(data.highValueSentences)
+        ? data.highValueSentences.map(normalizeStructureSentence).filter((item) => item.sentence)
+        : [];
 
-      if (layers.length === 0) {
+      if (layers.length === 0 && highValueSentences.length === 0) {
         throw new Error('No structure layers were generated.');
       }
+
+      const situationType = data.situationType && typeof data.situationType === 'object' ? data.situationType : {};
+      const coreFrame = data.coreFrame && typeof data.coreFrame === 'object' ? data.coreFrame : {};
+      const transferPractice = Array.isArray(data.transferPractice)
+        ? data.transferPractice.map(normalizeTransferPractice).filter((item) => item.scenario || item.prompt)
+        : [];
+      const normalizedLayers = layers.length > 0
+        ? layers
+        : highValueSentences.map((item, index) => ({
+            name: item.functionName || `Move ${index + 1}`,
+            purpose: item.whyUseful,
+            sentence: item.sentence,
+            smallerMove: item.slots
+              .map((slot) => [slot.current, ...slot.swaps.slice(0, 2)].filter(Boolean).join(' -> '))
+              .filter(Boolean)
+              .join('; '),
+            recommendedAssets: item.chunks,
+          }));
+      const fullSpokenVersion = toText(data.fullSpokenVersion) || toText(data.sampleAnswer);
 
       const plan = {
         title: toText(data.title) || topic,
         goal: toText(data.goal) || getPracticeGoal(practiceGoal).label,
-        bigToSmallPath: toTextArray(data.bigToSmallPath),
-        layers,
-        sampleAnswer: toText(data.sampleAnswer),
+        situationType: {
+          name: toText(situationType.name),
+          whyThisFrame: toText(situationType.whyThisFrame),
+          useWhen: toTextArray(situationType.useWhen),
+        },
+        coreFrame: {
+          name: toText(coreFrame.name),
+          route: toTextArray(coreFrame.route),
+          plainExplanation: toText(coreFrame.plainExplanation),
+        },
+        highValueSentences,
+        transferPractice,
+        bigToSmallPath: toTextArray(data.bigToSmallPath || coreFrame.route),
+        layers: normalizedLayers,
+        sampleAnswer: fullSpokenVersion,
+        fullSpokenVersion,
         practicePrompt: toText(data.practicePrompt),
       };
 
@@ -2088,6 +2177,13 @@ function StructurePage({
   const assetCount = Array.isArray(assets) ? assets.length : 0;
   const layers = Array.isArray(structurePlan?.layers) ? structurePlan.layers : [];
   const path = Array.isArray(structurePlan?.bigToSmallPath) ? structurePlan.bigToSmallPath : [];
+  const highValueSentences = Array.isArray(structurePlan?.highValueSentences)
+    ? structurePlan.highValueSentences
+    : [];
+  const transferPractice = Array.isArray(structurePlan?.transferPractice)
+    ? structurePlan.transferPractice
+    : [];
+  const frameRoute = toTextArray(structurePlan?.coreFrame?.route || path);
 
   return (
     <section className="page">
@@ -2140,48 +2236,117 @@ function StructurePage({
           ) : (
             <>
               <div className="structure-hero">
-                <p className="eyebrow">Expression Architecture</p>
+                <p className="eyebrow">This Situation Is...</p>
                 <h2>{toText(structurePlan.title)}</h2>
-                <p>{toText(structurePlan.practicePrompt) || toText(structurePlan.goal)}</p>
+                <p>
+                  <strong>{toText(structurePlan.situationType?.name) || toText(structurePlan.goal)}</strong>
+                  {toText(structurePlan.situationType?.whyThisFrame)
+                    ? ` - ${toText(structurePlan.situationType.whyThisFrame)}`
+                    : ''}
+                </p>
+                {Array.isArray(structurePlan.situationType?.useWhen) &&
+                  structurePlan.situationType.useWhen.length > 0 && (
+                    <div className="pill-row">
+                      {structurePlan.situationType.useWhen.map((item) => (
+                        <span className="pill blue" key={toText(item)}>
+                          {toText(item)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
               </div>
 
-              {path.length > 0 && (
-                <div className="structure-path">
-                  {path.map((item, index) => (
+              <div className="structure-section">
+                <div>
+                  <p className="eyebrow">Use This Native Frame</p>
+                  <h3>{toText(structurePlan.coreFrame?.name) || 'Reusable speaking route'}</h3>
+                  <p>{toText(structurePlan.coreFrame?.plainExplanation) || toText(structurePlan.practicePrompt)}</p>
+                </div>
+
+                {frameRoute.length > 0 && (
+                  <div className="structure-path">
+                    {frameRoute.map((item, index) => (
                     <span key={`${toText(item)}-${index}`}>{toText(item)}</span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="structure-layers">
+                  {(highValueSentences.length > 0 ? highValueSentences : layers.map((layer) => ({
+                    sentence: layer.sentence,
+                    functionName: layer.name,
+                    whyUseful: layer.purpose,
+                    slots: toText(layer.smallerMove)
+                      ? [{ label: 'Swap', current: toText(layer.smallerMove), swaps: [] }]
+                      : [],
+                    chunks: toTextArray(layer.recommendedAssets),
+                    scenarios: [],
+                  }))).map((item, index) => (
+                    <div className="structure-layer" key={`${toText(item.sentence)}-${index}`}>
+                      <div className="layer-index">{index + 1}</div>
+                      <div>
+                        <p className="eyebrow">{toText(item.functionName) || `Sentence ${index + 1}`}</p>
+                        <h3>{toText(item.sentence)}</h3>
+                        <p>{toText(item.whyUseful)}</p>
+
+                        {Array.isArray(item.slots) && item.slots.length > 0 && (
+                          <div className="slot-list">
+                            {item.slots.map((slot, slotIndex) => (
+                              <div className="slot-item" key={`${toText(slot.label)}-${slotIndex}`}>
+                                <strong>{toText(slot.label) || 'Slot'}</strong>
+                                <span>{toText(slot.current)}</span>
+                                {slot.swaps.length > 0 && (
+                                  <div className="pill-row">
+                                    {slot.swaps.map((swap) => (
+                                      <span className="pill" key={toText(swap)}>
+                                        {toText(swap)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {Array.isArray(item.chunks) && item.chunks.length > 0 && (
+                          <div className="pill-row">
+                            {item.chunks.map((chunk) => (
+                              <span className="pill blue" key={toText(chunk)}>
+                                {toText(chunk)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ))}
+                </div>
+              </div>
+
+              {transferPractice.length > 0 && (
+                <div className="structure-section">
+                  <div>
+                    <p className="eyebrow">Practice By Swapping</p>
+                    <h3>Move the same frame into new scenes</h3>
+                    <p>{toText(structurePlan.practicePrompt)}</p>
+                  </div>
+
+                  <div className="transfer-grid">
+                    {transferPractice.map((item, index) => (
+                      <div className="transfer-card" key={`${toText(item.scenario)}-${index}`}>
+                        <p className="eyebrow">{toText(item.scenario) || `Swap ${index + 1}`}</p>
+                        <h3>{toText(item.swapFocus)}</h3>
+                        <p>{toText(item.prompt)}</p>
+                        {item.sampleLine && <div className="layer-move">{toText(item.sampleLine)}</div>}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div className="structure-layers">
-                {layers.map((layer, index) => (
-                  <div className="structure-layer" key={`${toText(layer.name)}-${index}`}>
-                    <div className="layer-index">{index + 1}</div>
-                    <div>
-                      <p className="eyebrow">{toText(layer.name) || `Layer ${index + 1}`}</p>
-                      <h3>{toText(layer.sentence)}</h3>
-                      <p>{toText(layer.purpose)}</p>
-                      {layer.smallerMove && (
-                        <div className="layer-move">
-                          <strong>Move smaller:</strong> {toText(layer.smallerMove)}
-                        </div>
-                      )}
-                      {Array.isArray(layer.recommendedAssets) && layer.recommendedAssets.length > 0 && (
-                        <div className="pill-row">
-                          {layer.recommendedAssets.map((assetText) => (
-                            <span className="pill blue" key={toText(assetText)}>
-                              {toText(assetText)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
               <div className="practice-card">
-                <p className="eyebrow">Your Output</p>
+                <p className="eyebrow">Full Spoken Version</p>
                 <textarea
                   className="answer-box"
                   value={structureDraft}
