@@ -140,28 +140,51 @@ async function readApiJson(res, fallbackMessage = 'API request failed') {
   }
 }
 
-async function syncAssetsToDb(assets) {
+async function appendAssetsToDb(assets) {
   const safeAssets = Array.isArray(assets) ? assets : [];
+  const chunkSize = 4;
+  let latestAssets = null;
 
-  const res = await fetch(`${API_BASE}/api/assets`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ assets: safeAssets }),
-  });
-  const data = await readApiJson(res, 'Asset database sync failed');
+  for (let index = 0; index < safeAssets.length; index += chunkSize) {
+    const chunk = safeAssets.slice(index, index + chunkSize);
+    const res = await fetch(`${API_BASE}/api/assets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assets: chunk }),
+    });
+    const data = await readApiJson(res, 'Asset database append failed');
 
-  if (!res.ok || data.error) {
-    throw new Error(data.detail || data.error || 'Asset database sync failed');
+    if (!res.ok || data.error) {
+      throw new Error(data.detail || data.error || 'Asset database append failed');
+    }
+
+    latestAssets = data.assets || latestAssets;
   }
 
-  return data.assets || safeAssets;
+  return latestAssets || safeAssets;
 }
 
-async function persistAssets(assets) {
-  const safeAssets = Array.isArray(assets) ? assets : [];
+async function deleteAssetFromDb(id) {
+  const res = await fetch(`${API_BASE}/api/assets/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  const data = await readApiJson(res, 'Asset delete failed');
 
-  saveAssets(safeAssets);
-  await syncAssetsToDb(safeAssets);
+  if (!res.ok || data.error) {
+    throw new Error(data.detail || data.error || 'Asset delete failed');
+  }
+
+  return data.assets || [];
+}
+
+async function persistNewAssets(nextAssets, newAssets) {
+  const safeNextAssets = Array.isArray(nextAssets) ? nextAssets : [];
+  const safeNewAssets = Array.isArray(newAssets) ? newAssets : [];
+
+  saveAssets(safeNextAssets);
+  const savedAssets = await appendAssetsToDb(safeNewAssets);
+  saveAssets(savedAssets);
+  return savedAssets;
 }
 
 function toText(value) {
@@ -390,7 +413,12 @@ function App() {
           setAssets(dbAssets);
           saveAssets(dbAssets);
         } else if (Array.isArray(assets) && assets.length > 0) {
-          syncAssetsToDb(assets);
+          appendAssetsToDb(assets).then((savedAssets) => {
+            if (!cancelled) {
+              setAssets(savedAssets);
+              saveAssets(savedAssets);
+            }
+          });
         }
       } catch (err) {
         console.error('loadAssetsFromDb error:', err);
@@ -485,8 +513,8 @@ function App() {
 
         const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
 
-        await persistAssets(next);
-        setAssets(next);
+        const savedAssets = await persistNewAssets(next, generatedAssets);
+        setAssets(savedAssets);
         setNotice({
           type: 'success',
           message: `Added ${generatedAssets.length} text assets to your library.`,
@@ -577,8 +605,8 @@ function App() {
     const next = [asset, ...(Array.isArray(assets) ? assets : [])];
 
     try {
-      await persistAssets(next);
-      setAssets(next);
+      const savedAssets = await persistNewAssets(next, [asset]);
+      setAssets(savedAssets);
       setInsight(null);
       setNotice({ type: 'success', message: 'Saved to your expression assets.' });
       setTab('assets');
@@ -627,8 +655,8 @@ function App() {
 
       const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
 
-      await persistAssets(next);
-      setAssets(next);
+      const savedAssets = await persistNewAssets(next, generatedAssets);
+      setAssets(savedAssets);
       setNotice({
         type: 'success',
         message: `Added ${generatedAssets.length} video assets to your library.`,
@@ -693,8 +721,8 @@ function App() {
 
       const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
 
-      await persistAssets(next);
-      setAssets(next);
+      const savedAssets = await persistNewAssets(next, generatedAssets);
+      setAssets(savedAssets);
       setNotice({
         type: 'success',
         message: `Added ${generatedAssets.length} daily recommendations to your library.`,
@@ -720,8 +748,10 @@ function App() {
     const next = (Array.isArray(assets) ? assets : []).filter((a) => a.id !== id);
 
     try {
-      await persistAssets(next);
-      setAssets(next);
+      const savedAssets = await deleteAssetFromDb(id);
+      const fallbackAssets = next;
+      setAssets(Array.isArray(savedAssets) && savedAssets.length >= 0 ? savedAssets : fallbackAssets);
+      saveAssets(Array.isArray(savedAssets) ? savedAssets : fallbackAssets);
       setSelectedAssetIds((ids) => ids.filter((x) => x !== id));
     } catch (err) {
       console.error('deleteAsset error:', err);
@@ -836,8 +866,8 @@ function App() {
     const next = [asset, ...(Array.isArray(assets) ? assets : [])];
 
     try {
-      await persistAssets(next);
-      setAssets(next);
+      const savedAssets = await persistNewAssets(next, [asset]);
+      setAssets(savedAssets);
       setNotice({ type: 'success', message: 'Saved this structure as a Framework asset.' });
       setTab('assets');
     } catch (err) {
@@ -1097,8 +1127,8 @@ function App() {
     });
     const next = [normalized, ...(Array.isArray(assets) ? assets : [])];
     try {
-      await persistAssets(next);
-      setAssets(next);
+      const savedAssets = await persistNewAssets(next, [normalized]);
+      setAssets(savedAssets);
       setNotice({ type: 'success', message: 'Saved live practice expression to Assets.' });
     } catch (err) {
       console.error('saveLiveAsset error:', err);

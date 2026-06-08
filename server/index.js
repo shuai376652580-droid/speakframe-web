@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { decryptSecret } from "./secrets.js";
-import { getDbStatus, readDb, writeDb } from "./db.js";
+import { appendAssets, deleteAssetById, getDbStatus, readDb, writeDb } from "./db.js";
 
 dotenv.config();
 
@@ -209,6 +209,25 @@ app.get("/api/assets", async (req, res) => {
   }
 });
 
+app.post("/api/assets", async (req, res) => {
+  try {
+    const assets = Array.isArray(req.body?.assets) ? req.body.assets : [];
+    const nextDb = await appendAssets(assets);
+
+    res.json({
+      assets: nextDb.assets,
+      added: assets.length,
+      updatedAt: nextDb.updatedAt,
+    });
+  } catch (err) {
+    console.error("Append assets error:", err);
+    res.status(500).json({
+      error: "Assets append failed",
+      detail: "Could not save new assets to the database.",
+    });
+  }
+});
+
 app.put("/api/assets", async (req, res) => {
   try {
     const assets = Array.isArray(req.body?.assets) ? req.body.assets : [];
@@ -234,12 +253,7 @@ app.put("/api/assets", async (req, res) => {
 app.delete("/api/assets/:id", async (req, res) => {
   try {
     const id = toText(req.params?.id);
-    const db = await readDb();
-    const nextAssets = db.assets.filter((asset) => toText(asset?.id) !== id);
-    const nextDb = await writeDb({
-      ...db,
-      assets: nextAssets,
-    });
+    const nextDb = await deleteAssetById(id);
 
     res.json({
       assets: nextDb.assets,

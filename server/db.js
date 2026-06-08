@@ -13,6 +13,7 @@ const DB_PATH = path.join(DATA_DIR, "speakframe-db.json");
 const DEFAULT_DB = {
   assets: [],
   updatedAt: null,
+  deletedAssetIds: [],
 };
 
 let firestoreDb = null;
@@ -73,6 +74,18 @@ function sortAssets(assets) {
     const bTime = Date.parse(b?.createdAt || "") || 0;
     return bTime - aTime;
   });
+}
+
+function mergeAssets(...assetLists) {
+  const byId = new Map();
+
+  assetLists.flat().forEach((asset) => {
+    if (!asset || typeof asset !== "object") return;
+    const id = typeof asset.id === "string" && asset.id.trim() ? asset.id.trim() : crypto.randomUUID();
+    byId.set(id, { ...asset, id });
+  });
+
+  return sortAssets([...byId.values()]);
 }
 
 async function commitInChunks(db, operations) {
@@ -148,13 +161,19 @@ export async function readDb() {
     const assetSnapshot = await docRef.collection("assets").get();
     const subcollectionAssets = assetSnapshot.docs.map((doc) => doc.data()).filter(Boolean);
 
-    if (subcollectionAssets.length > 0) {
-      const data = snapshot.exists ? snapshot.data() || {} : {};
+    const data = snapshot.exists ? snapshot.data() || {} : {};
+    const deletedAssetIds = Array.isArray(data.deletedAssetIds) ? data.deletedAssetIds : [];
+    const legacyAssets = Array.isArray(data.assets) ? data.assets : [];
+    const mergedAssets = mergeAssets(legacyAssets, subcollectionAssets).filter(
+      (asset) => !deletedAssetIds.includes(asset.id)
+    );
 
+    if (subcollectionAssets.length > 0 || legacyAssets.length > 0) {
       return {
         ...DEFAULT_DB,
         ...data,
-        assets: sortAssets(subcollectionAssets),
+        deletedAssetIds,
+        assets: mergedAssets,
       };
     }
 
@@ -162,16 +181,134 @@ export async function readDb() {
       return { ...DEFAULT_DB };
     }
 
-    const data = snapshot.data() || {};
-
     return {
       ...DEFAULT_DB,
       ...data,
-      assets: Array.isArray(data.assets) ? data.assets : [],
+      deletedAssetIds,
+      assets: [],
     };
   } catch (err) {
     console.error("readFirestoreDb error:", err);
     return readLocalDb();
+  }
+}
+
+export async function appendAssets(assets) {
+  const safeAssets = Array.isArray(assets)
+    ? assets
+        .filter((asset) => asset && typeof asset === "object")
+        .map((asset) => ({
+          ...asset,
+          id: typeof asset?.id === "string" && asset.id.trim() ? asset.id.trim() : crypto.randomUUID(),
+        }))
+    : [];
+  const updatedAt = new Date().toISOString();
+
+  if (safeAssets.length === 0) {
+    return readDb();
+  }
+
+  try {
+    const docRef = getUserDocRef();
+
+    if (!docRef) {
+      const db = await readLocalDb();
+      const nextDb = {
+        ...db,
+        assets: mergeAssets(safeAssets, db.assets),
+        updatedAt,
+      };
+      return writeLocalDb(nextDb);
+    }
+
+    const db = getFirestore();
+    const assetsRef = docRef.collection("assets");
+    const operations = [
+      {
+        type: "set",
+        ref: docRef,
+        data: {
+          updatedAt,
+          storageMode: "asset-subcollection",
+        },
+        options: { merge: true },
+      },
+    ];
+
+    safeAssets.forEach((asset) => {
+      operations.push({
+        type: "set",
+        ref: assetsRef.doc(getAssetDocId(asset)),
+        data: asset,
+        options: { merge: true },
+      });
+    });
+
+    await commitInChunks(db, operations);
+    const nextDb = await readDb();
+    await writeLocalDb(nextDb);
+    return nextDb;
+  } catch (err) {
+    console.error("appendFirestoreAssets error:", err);
+
+    if (getUserDocRef()) {
+      throw err;
+    }
+
+    const db = await readLocalDb();
+    return writeLocalDb({
+      ...db,
+      assets: mergeAssets(safeAssets, db.assets),
+      updatedAt,
+    });
+  }
+}
+
+export async function deleteAssetById(id) {
+  const safeId = typeof id === "string" ? id.trim() : "";
+
+  if (!safeId) {
+    return readDb();
+  }
+
+  try {
+    const docRef = getUserDocRef();
+
+    if (!docRef) {
+      const db = await readLocalDb();
+      return writeLocalDb({
+        ...db,
+        assets: db.assets.filter((asset) => asset?.id !== safeId),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    await docRef.collection("assets").doc(encodeURIComponent(safeId)).delete();
+    await docRef.set(
+      {
+        updatedAt: new Date().toISOString(),
+        storageMode: "asset-subcollection",
+        deletedAssetIds: admin.firestore.FieldValue.arrayUnion(safeId),
+      },
+      { merge: true }
+    );
+
+    const nextDb = await readDb();
+    await writeLocalDb(nextDb);
+    return nextDb;
+  } catch (err) {
+    console.error("deleteFirestoreAsset error:", err);
+
+    if (getUserDocRef()) {
+      throw err;
+    }
+
+    const db = await readLocalDb();
+    return writeLocalDb({
+      ...db,
+      assets: db.assets.filter((asset) => asset?.id !== safeId),
+      updatedAt: new Date().toISOString(),
+    });
   }
 }
 
