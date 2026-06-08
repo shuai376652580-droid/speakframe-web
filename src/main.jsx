@@ -2207,7 +2207,6 @@ function StructurePage({
 }) {
   const currentGoal = getPracticeGoal(practiceGoal);
   const assetCount = Array.isArray(assets) ? assets.length : 0;
-  const outputRef = useRef(null);
   const [selectionHelp, setSelectionHelp] = useState(null);
   const [selectionLoading, setSelectionLoading] = useState(false);
   const layers = Array.isArray(structurePlan?.layers) ? structurePlan.layers : [];
@@ -2220,15 +2219,15 @@ function StructurePage({
     : [];
   const frameRoute = toTextArray(structurePlan?.coreFrame?.route || path);
 
-  function handleStructureSelection() {
+  function handleStructureSelection(anchorId) {
     const selectedText = window.getSelection?.().toString().trim() || '';
 
     if (!selectedText || selectedText.length > 280) {
-      setSelectionHelp(null);
       return;
     }
 
     setSelectionHelp({
+      anchorId,
       text: selectedText,
       data: null,
       error: '',
@@ -2268,6 +2267,45 @@ function StructurePage({
     } finally {
       setSelectionLoading(false);
     }
+  }
+
+  function renderSelectionHelper(anchorId) {
+    if (!selectionHelp?.text || selectionHelp.anchorId !== anchorId) return null;
+
+    return (
+      <div className="selection-helper inline" onMouseUp={(e) => e.stopPropagation()}>
+        <div>
+          <p className="eyebrow">Selected Text</p>
+          <strong>{selectionHelp.text}</strong>
+        </div>
+        {!selectionHelp.data && !selectionHelp.error && (
+          <button className="ghost-button small" onClick={explainSelection} disabled={selectionLoading}>
+            {selectionLoading ? 'Explaining...' : 'Explain in Chinese'}
+          </button>
+        )}
+        {selectionHelp.data && (
+          <div className="selection-result">
+            <p>{toText(selectionHelp.data.meaningZh)}</p>
+            <p>{toText(selectionHelp.data.usageZh)}</p>
+            {Array.isArray(selectionHelp.data.naturalAlternatives) &&
+              selectionHelp.data.naturalAlternatives.length > 0 && (
+                <div className="pill-row">
+                  {selectionHelp.data.naturalAlternatives.map((item) => (
+                    <span className="pill blue" key={toText(item)}>
+                      {toText(item)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            {selectionHelp.data.example && <div className="layer-move">{toText(selectionHelp.data.example)}</div>}
+          </div>
+        )}
+        {selectionHelp.error && <p className="error-text">{selectionHelp.error}</p>}
+        <button className="icon-button" onClick={() => setSelectionHelp(null)}>
+          <X size={16} />
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -2312,7 +2350,7 @@ function StructurePage({
           </div>
         </aside>
 
-        <div className="structure-output" ref={outputRef} onMouseUp={handleStructureSelection}>
+        <div className="structure-output">
           {!structurePlan ? (
             <EmptyState
               title="Build a reusable paragraph frame"
@@ -2323,12 +2361,13 @@ function StructurePage({
               <div className="structure-hero">
                 <p className="eyebrow">This Situation Is...</p>
                 <h2>{toText(structurePlan.title)}</h2>
-                <p>
+                <p onMouseUp={() => handleStructureSelection('situation')}>
                   <strong>{toText(structurePlan.situationType?.name) || toText(structurePlan.goal)}</strong>
                   {toText(structurePlan.situationType?.whyThisFrame)
                     ? ` - ${toText(structurePlan.situationType.whyThisFrame)}`
                     : ''}
                 </p>
+                {renderSelectionHelper('situation')}
                 {Array.isArray(structurePlan.situationType?.useWhen) &&
                   structurePlan.situationType.useWhen.length > 0 && (
                     <div className="pill-row">
@@ -2341,41 +2380,6 @@ function StructurePage({
                   )}
               </div>
 
-              {selectionHelp?.text && (
-                <div className="selection-helper" onMouseUp={(e) => e.stopPropagation()}>
-                  <div>
-                    <p className="eyebrow">Selected Text</p>
-                    <strong>{selectionHelp.text}</strong>
-                  </div>
-                  {!selectionHelp.data && !selectionHelp.error && (
-                    <button className="ghost-button small" onClick={explainSelection} disabled={selectionLoading}>
-                      {selectionLoading ? 'Explaining...' : 'Explain in Chinese'}
-                    </button>
-                  )}
-                  {selectionHelp.data && (
-                    <div className="selection-result">
-                      <p>{toText(selectionHelp.data.meaningZh)}</p>
-                      <p>{toText(selectionHelp.data.usageZh)}</p>
-                      {Array.isArray(selectionHelp.data.naturalAlternatives) &&
-                        selectionHelp.data.naturalAlternatives.length > 0 && (
-                          <div className="pill-row">
-                            {selectionHelp.data.naturalAlternatives.map((item) => (
-                              <span className="pill blue" key={toText(item)}>
-                                {toText(item)}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      {selectionHelp.data.example && <div className="layer-move">{toText(selectionHelp.data.example)}</div>}
-                    </div>
-                  )}
-                  {selectionHelp.error && <p className="error-text">{selectionHelp.error}</p>}
-                  <button className="icon-button" onClick={() => setSelectionHelp(null)}>
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-
               {(structurePlan.learningExplanation?.whyThisFrameZh ||
                 structurePlan.learningExplanation?.howToUseZh ||
                 structurePlan.learningExplanation?.commonMistakeZh) && (
@@ -2384,13 +2388,19 @@ function StructurePage({
                   {structurePlan.learningExplanation?.whyThisFrameZh && (
                     <div className="explain-row">
                       <strong>为什么用这个框架</strong>
-                      <p>{toText(structurePlan.learningExplanation.whyThisFrameZh)}</p>
+                      <p onMouseUp={() => handleStructureSelection('explain-why')}>
+                        {toText(structurePlan.learningExplanation.whyThisFrameZh)}
+                      </p>
+                      {renderSelectionHelper('explain-why')}
                     </div>
                   )}
                   {structurePlan.learningExplanation?.howToUseZh && (
                     <div className="explain-row">
                       <strong>你应该怎么练</strong>
-                      <p>{toText(structurePlan.learningExplanation.howToUseZh)}</p>
+                      <p onMouseUp={() => handleStructureSelection('explain-how')}>
+                        {toText(structurePlan.learningExplanation.howToUseZh)}
+                      </p>
+                      {renderSelectionHelper('explain-how')}
                     </div>
                   )}
                   {Array.isArray(structurePlan.learningExplanation?.reuseSteps) &&
@@ -2409,7 +2419,10 @@ function StructurePage({
                   {structurePlan.learningExplanation?.commonMistakeZh && (
                     <div className="explain-row">
                       <strong>容易卡住的地方</strong>
-                      <p>{toText(structurePlan.learningExplanation.commonMistakeZh)}</p>
+                      <p onMouseUp={() => handleStructureSelection('explain-mistake')}>
+                        {toText(structurePlan.learningExplanation.commonMistakeZh)}
+                      </p>
+                      {renderSelectionHelper('explain-mistake')}
                     </div>
                   )}
                 </div>
@@ -2419,7 +2432,10 @@ function StructurePage({
                 <div>
                   <p className="eyebrow">Use This Native Frame</p>
                   <h3>{toText(structurePlan.coreFrame?.name) || 'Reusable speaking route'}</h3>
-                  <p>{toText(structurePlan.coreFrame?.plainExplanation) || toText(structurePlan.practicePrompt)}</p>
+                  <p onMouseUp={() => handleStructureSelection('core-frame')}>
+                    {toText(structurePlan.coreFrame?.plainExplanation) || toText(structurePlan.practicePrompt)}
+                  </p>
+                  {renderSelectionHelper('core-frame')}
                 </div>
 
                 {frameRoute.length > 0 && (
@@ -2445,15 +2461,20 @@ function StructurePage({
                       <div className="layer-index">{index + 1}</div>
                       <div>
                         <p className="eyebrow">{toText(item.functionName) || `Sentence ${index + 1}`}</p>
-                        <h3>{toText(item.sentence)}</h3>
-                        <p>{toText(item.whyUseful)}</p>
+                        <h3 onMouseUp={() => handleStructureSelection(`sentence-${index}`)}>{toText(item.sentence)}</h3>
+                        {renderSelectionHelper(`sentence-${index}`)}
+                        <p onMouseUp={() => handleStructureSelection(`why-${index}`)}>{toText(item.whyUseful)}</p>
+                        {renderSelectionHelper(`why-${index}`)}
 
                         {Array.isArray(item.slots) && item.slots.length > 0 && (
                           <div className="slot-list">
                             {item.slots.map((slot, slotIndex) => (
                               <div className="slot-item" key={`${toText(slot.label)}-${slotIndex}`}>
                                 <strong>{toText(slot.label) || 'Slot'}</strong>
-                                <span>{toText(slot.current)}</span>
+                                <span onMouseUp={() => handleStructureSelection(`slot-${index}-${slotIndex}`)}>
+                                  {toText(slot.current)}
+                                </span>
+                                {renderSelectionHelper(`slot-${index}-${slotIndex}`)}
                                 {slot.swaps.length > 0 && (
                                   <div className="pill-row">
                                     {slot.swaps.map((swap) => (
@@ -2488,16 +2509,33 @@ function StructurePage({
                   <div>
                     <p className="eyebrow">Practice By Swapping</p>
                     <h3>Move the same frame into new scenes</h3>
-                    <p>{toText(structurePlan.practicePrompt)}</p>
+                    <p onMouseUp={() => handleStructureSelection('practice-prompt')}>
+                      {toText(structurePlan.practicePrompt)}
+                    </p>
+                    {renderSelectionHelper('practice-prompt')}
                   </div>
 
                   <div className="transfer-grid">
                     {transferPractice.map((item, index) => (
                       <div className="transfer-card" key={`${toText(item.scenario)}-${index}`}>
                         <p className="eyebrow">{toText(item.scenario) || `Swap ${index + 1}`}</p>
-                        <h3>{toText(item.swapFocus)}</h3>
-                        <p>{toText(item.prompt)}</p>
-                        {item.sampleLine && <div className="layer-move">{toText(item.sampleLine)}</div>}
+                        <h3 onMouseUp={() => handleStructureSelection(`transfer-focus-${index}`)}>
+                          {toText(item.swapFocus)}
+                        </h3>
+                        {renderSelectionHelper(`transfer-focus-${index}`)}
+                        <p onMouseUp={() => handleStructureSelection(`transfer-prompt-${index}`)}>
+                          {toText(item.prompt)}
+                        </p>
+                        {renderSelectionHelper(`transfer-prompt-${index}`)}
+                        {item.sampleLine && (
+                          <div
+                            className="layer-move"
+                            onMouseUp={() => handleStructureSelection(`transfer-line-${index}`)}
+                          >
+                            {toText(item.sampleLine)}
+                            {renderSelectionHelper(`transfer-line-${index}`)}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

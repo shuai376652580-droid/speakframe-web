@@ -192,7 +192,8 @@ nav { display: grid; gap: 18px; }
 .explain-row { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
 .explain-row:first-of-type { border-top: 0; padding-top: 0; }
 .explain-row strong { display: block; margin-bottom: 6px; color: #4f4036; }
-.selection-helper { position: sticky; top: 12px; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: start; border: 1px solid #df9b74; background: #fff7ed; border-radius: 16px; padding: 12px; margin-bottom: 14px; box-shadow: 0 14px 34px rgba(199, 101, 58, .12); }
+.selection-helper { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: start; border: 1px solid #df9b74; background: #fff7ed; border-radius: 16px; padding: 12px; margin: 10px 0 14px; box-shadow: 0 14px 34px rgba(199, 101, 58, .12); }
+.selection-helper.inline { position: relative; z-index: 2; }
 .selection-helper strong { display: block; line-height: 1.4; word-break: break-word; }
 .selection-result { grid-column: 1 / -1; display: grid; gap: 8px; }
 .selection-result p { margin: 0; color: #4f4036; line-height: 1.5; }
