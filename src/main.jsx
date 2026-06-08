@@ -390,6 +390,28 @@ function normalizeTransferPractice(item) {
   };
 }
 
+function buildStructureLearningNotes(structurePlan) {
+  if (!structurePlan) return '';
+
+  const explanation = structurePlan.learningExplanation || {};
+  const route = toTextArray(structurePlan.coreFrame?.route || structurePlan.bigToSmallPath).join(' -> ');
+  const sentenceLines = (Array.isArray(structurePlan.highValueSentences) ? structurePlan.highValueSentences : [])
+    .map((item, index) => `${index + 1}. ${toText(item.sentence)} (${toText(item.functionName)})`)
+    .filter(Boolean);
+  const reuseSteps = toTextArray(explanation.reuseSteps);
+
+  return [
+    toText(explanation.whyThisFrameZh) && `为什么用这个框架: ${toText(explanation.whyThisFrameZh)}`,
+    route && `表达路线: ${route}`,
+    toText(explanation.howToUseZh) && `怎么练: ${toText(explanation.howToUseZh)}`,
+    reuseSteps.length > 0 && `复用步骤: ${reuseSteps.join(' / ')}`,
+    toText(explanation.commonMistakeZh) && `避免的问题: ${toText(explanation.commonMistakeZh)}`,
+    sentenceLines.length > 0 && `母句型:\n${sentenceLines.join('\n')}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
   if (!structurePlan) return [];
 
@@ -401,6 +423,7 @@ function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
   const spokenText = toText(structureDraft) || toText(structurePlan.sampleAnswer);
   const path = toTextArray(structurePlan.coreFrame?.route || structurePlan.bigToSmallPath);
   const title = toText(structurePlan.title) || 'Reusable speaking frame';
+  const learningNotes = buildStructureLearningNotes(structurePlan);
   const sharedScenarios = [
     goal.label,
     'Recombination practice',
@@ -419,11 +442,12 @@ function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
       comboRole: 'framework',
       rootPattern: path.length > 0 ? path.join(' -> ') : layers.map((layer) => toText(layer.name)).join(' -> '),
       scenarios: sharedScenarios,
-      examples: [spokenText].filter(Boolean),
+      examples: [spokenText, learningNotes].filter(Boolean),
       tags: ['structure', 'framework', 'recombine', goal.id],
       difficulty: 'B1-B2',
       theme: toText(structurePlan.coreFrame?.name) || toText(structurePlan.goal) || goal.label,
       notes:
+        learningNotes ||
         toText(structurePlan.coreFrame?.plainExplanation) ||
         toText(structurePlan.practicePrompt) ||
         'Saved from Structure practice.',
@@ -954,6 +978,8 @@ function App() {
 
       const situationType = data.situationType && typeof data.situationType === 'object' ? data.situationType : {};
       const coreFrame = data.coreFrame && typeof data.coreFrame === 'object' ? data.coreFrame : {};
+      const learningExplanation =
+        data.learningExplanation && typeof data.learningExplanation === 'object' ? data.learningExplanation : {};
       const transferPractice = Array.isArray(data.transferPractice)
         ? data.transferPractice.map(normalizeTransferPractice).filter((item) => item.scenario || item.prompt)
         : [];
@@ -983,6 +1009,12 @@ function App() {
           name: toText(coreFrame.name),
           route: toTextArray(coreFrame.route),
           plainExplanation: toText(coreFrame.plainExplanation),
+        },
+        learningExplanation: {
+          whyThisFrameZh: toText(learningExplanation.whyThisFrameZh),
+          howToUseZh: toText(learningExplanation.howToUseZh),
+          reuseSteps: toTextArray(learningExplanation.reuseSteps),
+          commonMistakeZh: toText(learningExplanation.commonMistakeZh),
         },
         highValueSentences,
         transferPractice,
@@ -2175,6 +2207,9 @@ function StructurePage({
 }) {
   const currentGoal = getPracticeGoal(practiceGoal);
   const assetCount = Array.isArray(assets) ? assets.length : 0;
+  const outputRef = useRef(null);
+  const [selectionHelp, setSelectionHelp] = useState(null);
+  const [selectionLoading, setSelectionLoading] = useState(false);
   const layers = Array.isArray(structurePlan?.layers) ? structurePlan.layers : [];
   const path = Array.isArray(structurePlan?.bigToSmallPath) ? structurePlan.bigToSmallPath : [];
   const highValueSentences = Array.isArray(structurePlan?.highValueSentences)
@@ -2184,6 +2219,56 @@ function StructurePage({
     ? structurePlan.transferPractice
     : [];
   const frameRoute = toTextArray(structurePlan?.coreFrame?.route || path);
+
+  function handleStructureSelection() {
+    const selectedText = window.getSelection?.().toString().trim() || '';
+
+    if (!selectedText || selectedText.length > 280) {
+      setSelectionHelp(null);
+      return;
+    }
+
+    setSelectionHelp({
+      text: selectedText,
+      data: null,
+      error: '',
+    });
+  }
+
+  async function explainSelection() {
+    if (!selectionHelp?.text || selectionLoading) return;
+
+    setSelectionLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/translate-selection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: selectionHelp.text,
+          context: toText(structurePlan?.fullSpokenVersion || structurePlan?.sampleAnswer),
+        }),
+      });
+      const data = await readApiJson(res, 'Selection explanation failed');
+
+      if (!res.ok || data.error) {
+        throw new Error(data.detail || data.error || 'Selection explanation failed');
+      }
+
+      setSelectionHelp((current) => ({
+        ...(current || {}),
+        data,
+        error: '',
+      }));
+    } catch (err) {
+      setSelectionHelp((current) => ({
+        ...(current || {}),
+        error: friendlyErrorMessage(err.message, 'Selection explanation failed.'),
+      }));
+    } finally {
+      setSelectionLoading(false);
+    }
+  }
 
   return (
     <section className="page">
@@ -2227,7 +2312,7 @@ function StructurePage({
           </div>
         </aside>
 
-        <div className="structure-output">
+        <div className="structure-output" ref={outputRef} onMouseUp={handleStructureSelection}>
           {!structurePlan ? (
             <EmptyState
               title="Build a reusable paragraph frame"
@@ -2255,6 +2340,80 @@ function StructurePage({
                     </div>
                   )}
               </div>
+
+              {selectionHelp?.text && (
+                <div className="selection-helper" onMouseUp={(e) => e.stopPropagation()}>
+                  <div>
+                    <p className="eyebrow">Selected Text</p>
+                    <strong>{selectionHelp.text}</strong>
+                  </div>
+                  {!selectionHelp.data && !selectionHelp.error && (
+                    <button className="ghost-button small" onClick={explainSelection} disabled={selectionLoading}>
+                      {selectionLoading ? 'Explaining...' : 'Explain in Chinese'}
+                    </button>
+                  )}
+                  {selectionHelp.data && (
+                    <div className="selection-result">
+                      <p>{toText(selectionHelp.data.meaningZh)}</p>
+                      <p>{toText(selectionHelp.data.usageZh)}</p>
+                      {Array.isArray(selectionHelp.data.naturalAlternatives) &&
+                        selectionHelp.data.naturalAlternatives.length > 0 && (
+                          <div className="pill-row">
+                            {selectionHelp.data.naturalAlternatives.map((item) => (
+                              <span className="pill blue" key={toText(item)}>
+                                {toText(item)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      {selectionHelp.data.example && <div className="layer-move">{toText(selectionHelp.data.example)}</div>}
+                    </div>
+                  )}
+                  {selectionHelp.error && <p className="error-text">{selectionHelp.error}</p>}
+                  <button className="icon-button" onClick={() => setSelectionHelp(null)}>
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
+
+              {(structurePlan.learningExplanation?.whyThisFrameZh ||
+                structurePlan.learningExplanation?.howToUseZh ||
+                structurePlan.learningExplanation?.commonMistakeZh) && (
+                <div className="structure-section explanation-section">
+                  <p className="eyebrow">Learning Explanation</p>
+                  {structurePlan.learningExplanation?.whyThisFrameZh && (
+                    <div className="explain-row">
+                      <strong>为什么用这个框架</strong>
+                      <p>{toText(structurePlan.learningExplanation.whyThisFrameZh)}</p>
+                    </div>
+                  )}
+                  {structurePlan.learningExplanation?.howToUseZh && (
+                    <div className="explain-row">
+                      <strong>你应该怎么练</strong>
+                      <p>{toText(structurePlan.learningExplanation.howToUseZh)}</p>
+                    </div>
+                  )}
+                  {Array.isArray(structurePlan.learningExplanation?.reuseSteps) &&
+                    structurePlan.learningExplanation.reuseSteps.length > 0 && (
+                      <div className="explain-row">
+                        <strong>复用步骤</strong>
+                        <div className="pill-row">
+                          {structurePlan.learningExplanation.reuseSteps.map((step) => (
+                            <span className="pill" key={toText(step)}>
+                              {toText(step)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  {structurePlan.learningExplanation?.commonMistakeZh && (
+                    <div className="explain-row">
+                      <strong>容易卡住的地方</strong>
+                      <p>{toText(structurePlan.learningExplanation.commonMistakeZh)}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="structure-section">
                 <div>

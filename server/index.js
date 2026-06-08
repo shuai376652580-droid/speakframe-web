@@ -795,6 +795,12 @@ JSON format:
     "route": [],
     "plainExplanation": ""
   },
+  "learningExplanation": {
+    "whyThisFrameZh": "",
+    "howToUseZh": "",
+    "reuseSteps": [],
+    "commonMistakeZh": ""
+  },
   "highValueSentences": [
     {
       "sentence": "",
@@ -828,17 +834,20 @@ Rules:
 2. coreFrame.route must show the speaking route in 4-6 short move names, for example: Intention -> Limitation -> Strength -> Specific example -> Next step.
 3. highValueSentences must contain 4-6 native compressed sentence frameworks. They should be longer than tiny sentences, natural, and reusable by swapping words.
 4. Prefer high-value frames like: "I've been thinking about...", "Even though..., I still think...", "At first..., but after..., I started to...", "One thing I find challenging is..., not because..., but because...", "It started as..., but it turned into...", "So my next step is..., even if..., because...".
-5. Each highValueSentences item must explain the function, why it is useful, replaceable slots, scenarios, and useful chunks. Make the learner understand when to use the sentence.
-6. fullSpokenVersion must combine these sentences into one natural spoken paragraph that can describe a complex thing clearly.
-7. transferPractice must give 3 scene swaps so the same frame can move to another situation.
-8. For job-search-interview, include practical language for fit, motivation, experience, availability, and asking about opportunities.
-9. Keep the style natural, practical, and reusable for Chinese learners. No grammar lecture.
-10. If the user writes Chinese, still return English sentences, with concise Chinese-friendly labels where helpful.
+5. learningExplanation must be in Chinese. It should explain why this frame fits the situation, how to study it, how to swap it, and one common mistake to avoid. This is learning guidance, not grammar lecture.
+6. Each highValueSentences item must explain the function, why it is useful, replaceable slots, scenarios, and useful chunks. Make the learner understand when to use the sentence.
+7. fullSpokenVersion must combine these sentences into one natural spoken paragraph that can describe a complex thing clearly.
+8. transferPractice must give 3 scene swaps so the same frame can move to another situation.
+9. For job-search-interview, include practical language for fit, motivation, experience, availability, and asking about opportunities.
+10. Keep the style natural, practical, and reusable for Chinese learners. No grammar lecture.
+11. If the user writes Chinese, still return English sentences, with concise Chinese-friendly labels where helpful.
 `);
 
     const data = safeParseJson(rawText);
     const situationType = data.situationType && typeof data.situationType === "object" ? data.situationType : {};
     const coreFrame = data.coreFrame && typeof data.coreFrame === "object" ? data.coreFrame : {};
+    const learningExplanation =
+      data.learningExplanation && typeof data.learningExplanation === "object" ? data.learningExplanation : {};
     const highValueSentences = Array.isArray(data.highValueSentences)
       ? data.highValueSentences
           .map((item) => {
@@ -909,6 +918,12 @@ Rules:
         route: toTextArray(coreFrame.route),
         plainExplanation: toText(coreFrame.plainExplanation),
       },
+      learningExplanation: {
+        whyThisFrameZh: toText(learningExplanation.whyThisFrameZh),
+        howToUseZh: toText(learningExplanation.howToUseZh),
+        reuseSteps: toTextArray(learningExplanation.reuseSteps),
+        commonMistakeZh: toText(learningExplanation.commonMistakeZh),
+      },
       highValueSentences,
       transferPractice,
       bigToSmallPath: toTextArray(coreFrame.route),
@@ -924,6 +939,66 @@ Rules:
       err,
       "Structure practice failed",
       "Structure practice failed. Please check the server connection and API key."
+    );
+  }
+});
+
+app.post("/api/translate-selection", async (req, res) => {
+  try {
+    const text = toText(req.body?.text);
+    const context = toText(req.body?.context);
+
+    if (!text) {
+      return res.status(400).json({
+        error: "Text is required",
+        detail: "Please send a word, phrase, or sentence to explain.",
+      });
+    }
+
+    const rawText = await generateTextContent(`
+You are SpeakFrame's concise bilingual expression explainer.
+
+Selected English:
+${text}
+
+Context:
+${context}
+
+Return ONLY raw JSON.
+Do not use markdown.
+Do not use code block.
+
+JSON format:
+{
+  "meaningZh": "",
+  "usageZh": "",
+  "naturalAlternatives": [],
+  "example": ""
+}
+
+Rules:
+1. Explain in Chinese.
+2. Keep it short and practical for a Chinese learner.
+3. If selected text is a single word, explain the meaning in this sentence and one natural collocation.
+4. If selected text is a phrase or sentence, explain what expression function it performs.
+5. naturalAlternatives should contain 2-4 useful English alternatives.
+`);
+
+    const data = safeParseJson(rawText);
+
+    res.json({
+      meaningZh: toText(data.meaningZh),
+      usageZh: toText(data.usageZh),
+      naturalAlternatives: toTextArray(data.naturalAlternatives),
+      example: toText(data.example),
+    });
+  } catch (err) {
+    console.error("Translate selection error:", err);
+    sendAiError(
+      res,
+      err,
+      "Selection explanation failed",
+      "Selection explanation failed. Please check the server connection and API key."
     );
   }
 });
