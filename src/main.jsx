@@ -127,26 +127,25 @@ function saveAssets(assets) {
 async function syncAssetsToDb(assets) {
   const safeAssets = Array.isArray(assets) ? assets : [];
 
-  try {
-    const res = await fetch(`${API_BASE}/api/assets`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assets: safeAssets }),
-    });
+  const res = await fetch(`${API_BASE}/api/assets`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assets: safeAssets }),
+  });
+  const data = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      throw new Error('Asset database sync failed');
-    }
-  } catch (err) {
-    console.error('syncAssetsToDb error:', err);
+  if (!res.ok || data.error) {
+    throw new Error(data.detail || data.error || 'Asset database sync failed');
   }
+
+  return data.assets || safeAssets;
 }
 
-function persistAssets(assets) {
+async function persistAssets(assets) {
   const safeAssets = Array.isArray(assets) ? assets : [];
 
   saveAssets(safeAssets);
-  syncAssetsToDb(safeAssets);
+  await syncAssetsToDb(safeAssets);
 }
 
 function toText(value) {
@@ -470,8 +469,8 @@ function App() {
 
         const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
 
+        await persistAssets(next);
         setAssets(next);
-        persistAssets(next);
         setNotice({
           type: 'success',
           message: `Added ${generatedAssets.length} text assets to your library.`,
@@ -552,7 +551,7 @@ function App() {
     }
   }
 
-  function addAssetFromInsight(item) {
+  async function addAssetFromInsight(item) {
     const asset = normalizeAsset(item, {
       sourceType: 'Insight',
       type: 'Pattern',
@@ -561,11 +560,19 @@ function App() {
 
     const next = [asset, ...(Array.isArray(assets) ? assets : [])];
 
-    setAssets(next);
-    persistAssets(next);
-    setInsight(null);
-    setNotice({ type: 'success', message: 'Saved to your expression assets.' });
-    setTab('assets');
+    try {
+      await persistAssets(next);
+      setAssets(next);
+      setInsight(null);
+      setNotice({ type: 'success', message: 'Saved to your expression assets.' });
+      setTab('assets');
+    } catch (err) {
+      console.error('addAssetFromInsight error:', err);
+      setNotice({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Asset save failed. Please try again.'),
+      });
+    }
   }
 
   async function parseVideoAssets(videoUrl) {
@@ -604,8 +611,8 @@ function App() {
 
       const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
 
+      await persistAssets(next);
       setAssets(next);
-      persistAssets(next);
       setNotice({
         type: 'success',
         message: `Added ${generatedAssets.length} video assets to your library.`,
@@ -670,8 +677,8 @@ function App() {
 
       const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
 
+      await persistAssets(next);
       setAssets(next);
-      persistAssets(next);
       setNotice({
         type: 'success',
         message: `Added ${generatedAssets.length} daily recommendations to your library.`,
@@ -693,12 +700,20 @@ function App() {
     }
   }
 
-  function deleteAsset(id) {
+  async function deleteAsset(id) {
     const next = (Array.isArray(assets) ? assets : []).filter((a) => a.id !== id);
 
-    setAssets(next);
-    persistAssets(next);
-    setSelectedAssetIds((ids) => ids.filter((x) => x !== id));
+    try {
+      await persistAssets(next);
+      setAssets(next);
+      setSelectedAssetIds((ids) => ids.filter((x) => x !== id));
+    } catch (err) {
+      console.error('deleteAsset error:', err);
+      setNotice({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Delete failed. Please try again.'),
+      });
+    }
   }
 
   async function generateStructurePlan() {
@@ -779,7 +794,7 @@ function App() {
     }
   }
 
-  function saveStructureAsAsset() {
+  async function saveStructureAsAsset() {
     if (!structurePlan) return;
 
     const text = toText(structureDraft) || toText(structurePlan.sampleAnswer);
@@ -804,10 +819,18 @@ function App() {
 
     const next = [asset, ...(Array.isArray(assets) ? assets : [])];
 
-    setAssets(next);
-    persistAssets(next);
-    setNotice({ type: 'success', message: 'Saved this structure as a Framework asset.' });
-    setTab('assets');
+    try {
+      await persistAssets(next);
+      setAssets(next);
+      setNotice({ type: 'success', message: 'Saved this structure as a Framework asset.' });
+      setTab('assets');
+    } catch (err) {
+      console.error('saveStructureAsAsset error:', err);
+      setNotice({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Structure save failed. Please try again.'),
+      });
+    }
   }
 
   function toggleVoiceInput() {
@@ -1051,15 +1074,23 @@ function App() {
     }
   }
 
-  function saveLiveAsset(asset) {
+  async function saveLiveAsset(asset) {
     const normalized = normalizeAsset(asset, {
       sourceType: 'Live',
       notes: 'Saved from live practice summary.',
     });
     const next = [normalized, ...(Array.isArray(assets) ? assets : [])];
-    setAssets(next);
-    persistAssets(next);
-    setNotice({ type: 'success', message: 'Saved live practice expression to Assets.' });
+    try {
+      await persistAssets(next);
+      setAssets(next);
+      setNotice({ type: 'success', message: 'Saved live practice expression to Assets.' });
+    } catch (err) {
+      console.error('saveLiveAsset error:', err);
+      setNotice({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Live practice asset save failed. Please try again.'),
+      });
+    }
   }
 
   async function generatePractice() {
