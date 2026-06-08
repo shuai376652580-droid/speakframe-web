@@ -215,8 +215,8 @@ app.post("/api/assets", async (req, res) => {
     const nextDb = await appendAssets(assets);
 
     res.json({
-      assets: nextDb.assets,
       added: assets.length,
+      assetCount: nextDb.assets.length,
       updatedAt: nextDb.updatedAt,
     });
   } catch (err) {
@@ -256,7 +256,8 @@ app.delete("/api/assets/:id", async (req, res) => {
     const nextDb = await deleteAssetById(id);
 
     res.json({
-      assets: nextDb.assets,
+      deletedId: id,
+      assetCount: nextDb.assets.length,
       updatedAt: nextDb.updatedAt,
     });
   } catch (err) {

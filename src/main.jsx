@@ -143,7 +143,6 @@ async function readApiJson(res, fallbackMessage = 'API request failed') {
 async function appendAssetsToDb(assets) {
   const safeAssets = Array.isArray(assets) ? assets : [];
   const chunkSize = 4;
-  let latestAssets = null;
 
   for (let index = 0; index < safeAssets.length; index += chunkSize) {
     const chunk = safeAssets.slice(index, index + chunkSize);
@@ -158,10 +157,9 @@ async function appendAssetsToDb(assets) {
       throw new Error(data.detail || data.error || 'Asset database append failed');
     }
 
-    latestAssets = data.assets || latestAssets;
   }
 
-  return latestAssets || safeAssets;
+  return safeAssets;
 }
 
 async function deleteAssetFromDb(id) {
@@ -174,7 +172,7 @@ async function deleteAssetFromDb(id) {
     throw new Error(data.detail || data.error || 'Asset delete failed');
   }
 
-  return data.assets || [];
+  return data.deletedId || id;
 }
 
 async function persistNewAssets(nextAssets, newAssets) {
@@ -182,9 +180,8 @@ async function persistNewAssets(nextAssets, newAssets) {
   const safeNewAssets = Array.isArray(newAssets) ? newAssets : [];
 
   saveAssets(safeNextAssets);
-  const savedAssets = await appendAssetsToDb(safeNewAssets);
-  saveAssets(savedAssets);
-  return savedAssets;
+  await appendAssetsToDb(safeNewAssets);
+  return safeNextAssets;
 }
 
 function toText(value) {
@@ -748,10 +745,9 @@ function App() {
     const next = (Array.isArray(assets) ? assets : []).filter((a) => a.id !== id);
 
     try {
-      const savedAssets = await deleteAssetFromDb(id);
-      const fallbackAssets = next;
-      setAssets(Array.isArray(savedAssets) && savedAssets.length >= 0 ? savedAssets : fallbackAssets);
-      saveAssets(Array.isArray(savedAssets) ? savedAssets : fallbackAssets);
+      await deleteAssetFromDb(id);
+      setAssets(next);
+      saveAssets(next);
       setSelectedAssetIds((ids) => ids.filter((x) => x !== id));
     } catch (err) {
       console.error('deleteAsset error:', err);
