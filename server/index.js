@@ -38,6 +38,17 @@ const ASSET_TYPES = [
   "Local Expression",
 ];
 
+const PRACTICE_GOAL_GUIDE = `
+Practice goal guide:
+- explain-opinion: explain one view with a point, reason, example, contrast, and takeaway.
+- job-search-interview: general job search and interview language for fit, motivation, experience, availability, and next steps.
+- daily-questions: reusable everyday questions about time, plans, needs, locations, follow-ups, and clarification.
+- part-time-service-job: practical language for bar, restaurant, cafe, retail, and clothing-store part-time work.
+- daily-small-talk: tell small everyday moments with setup, detail, feeling, reaction, and follow-up.
+- workplace-communication: meetings, collaboration, support, sales, suggestions, updates, and clarifying work.
+- personal-reflection: change, realization, feeling, memory, growth, and personal decisions.
+`;
+
 async function generateTextContent(prompt) {
   const response = await textAi.chat.completions.create({
     model: process.env.TEXT_MODEL || "deepseek-v4-flash",
@@ -654,6 +665,8 @@ SpeakFrame helps Chinese learners build reusable expression assets and combine t
 Practice goal:
 ${practiceGoal}
 
+${PRACTICE_GOAL_GUIDE}
+
 Existing assets, if any:
 ${JSON.stringify(assetContext)}
 
@@ -689,7 +702,7 @@ JSON format:
 }
 
 Rules:
-1. Recommend exactly 4 assets that can be used together in one short answer.
+1. Recommend exactly 4 assets that can be used together in one short answer or one real interaction.
 2. Use a practical theme that fits the practice goal and the learner's current assets.
 3. Include a balanced flow: opener, reason, detail/example, closing or question.
 4. recommendedType must be exactly one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
@@ -757,6 +770,8 @@ ${topic}
 Practice goal:
 ${practiceGoal}
 
+${PRACTICE_GOAL_GUIDE}
+
 Saved expression assets that can be reused:
 ${JSON.stringify(assetContext)}
 
@@ -785,15 +800,15 @@ JSON format:
 }
 
 Rules:
-1. Create 5 layers: Big Point, Reason, Smaller Detail, Example, Takeaway.
-2. Each layer must contain one natural B1-B2 English sentence the learner can say and reuse.
-3. The layers must clearly move from broad idea to smaller, concrete detail, then back to a simple takeaway.
-4. recommendedAssets should include exact saved asset texts when useful, otherwise useful new chunks.
-5. sampleAnswer must combine all layers into one short spoken paragraph that explains one thing clearly.
-6. practicePrompt should tell the learner how to reuse the frame by changing the topic, nouns, verbs, details, and ending.
-7. Prefer everyday, small-talk-friendly language unless the practice goal is clearly professional.
-8. Keep the style natural, practical, and reusable for Chinese learners.
-9. Do not give grammar explanation.
+1. Create 5 layers: Core Frame, Setup, Development, Specific Detail, Result / Next Step.
+2. Each layer must contain one native compressed sentence framework: longer than a tiny sentence, natural, and reusable by swapping words.
+3. Prefer high-value frames like: "I've been thinking about...", "Even though..., I still think...", "At first..., but after..., I started to...", "One thing I find challenging is..., not because..., but because...", "It started as..., but it turned into...", "So my next step is..., even if..., because...".
+4. The layers must help the learner describe a more complex thing clearly, moving from big idea to smaller detail, then to result or next step.
+5. recommendedAssets should include exact saved asset texts when useful, otherwise useful new chunks or slot swaps.
+6. sampleAnswer must combine all layers into one natural spoken paragraph that explains one thing clearly.
+7. practicePrompt should tell the learner how to reuse the frame by changing scene, nouns, verbs, details, and ending.
+8. For job-search-interview and part-time-service-job, include practical language for availability, fit, service attitude, learning, and asking about opportunities.
+9. Keep the style natural, practical, and reusable for Chinese learners. Do not give grammar explanation.
 10. If the user writes Chinese, still return English sentences, with concise structure labels.
 `);
 
@@ -1024,6 +1039,8 @@ Create a speaking practice for SpeakFrame.
 Practice goal:
 ${practiceGoal}
 
+${PRACTICE_GOAL_GUIDE}
+
 Assets:
 ${JSON.stringify(usableAssets)}
 
@@ -1042,13 +1059,14 @@ JSON format:
 
 Rules:
 1. Create one realistic speaking or writing task for the practice goal.
-2. The scenario must fit interview, workplace, daily life small talk, technical support, sales, or personal reflection.
-3. The question should make the learner use the selected assets naturally.
-4. mustUse must include the exact selected asset texts.
-5. sampleAnswer should use B1-B2 English.
-6. sampleAnswer should follow a reusable paragraph flow: setup/main idea -> reason/feeling -> concrete detail/example -> result/takeaway.
-7. Keep the task practical, not like a school essay.
-8. Explain the goal through scenario and question, not with meta commentary.
+2. The scenario must fit the selected practice goal, especially job search, daily questions, part-time service jobs, workplace communication, daily small talk, opinion, or reflection.
+3. If any selected asset has type "Framework" or comboRole "framework", treat it as the speaking route. The task should ask the learner to reuse that route in a new but related situation.
+4. The question should make the learner use the selected assets naturally.
+5. mustUse must include the exact selected asset texts, but Framework assets can be listed as "Frame: [text]" if the exact title is not a sentence.
+6. sampleAnswer should use B1-B2 English.
+7. sampleAnswer should follow the Framework route if provided; otherwise use setup/main idea -> reason/feeling -> concrete detail/example -> result/takeaway.
+8. Keep the task practical, not like a school essay.
+9. Explain the goal through scenario and question, not with meta commentary.
 `);
 
     const data = safeParseJson(rawText);

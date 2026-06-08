@@ -46,26 +46,26 @@ const PRACTICE_GOALS = [
   {
     id: 'explain-opinion',
     label: 'Explain Opinion',
-    purpose: 'Build a clear answer with a point, reason, detail, and closing.',
-    keywords: ['opinion', 'reason', 'explain', 'because', 'why', 'point'],
+    purpose: 'Explain one view clearly with a reusable point, reason, example, contrast, and takeaway.',
+    keywords: ['opinion', 'reason', 'explain', 'because', 'why', 'point', 'think', 'realize'],
   },
   {
-    id: 'interview-answer',
-    label: 'Interview Answer',
-    purpose: 'Explain fit, motivation, experience, and value in an interview.',
-    keywords: ['interview', 'fit', 'role', 'work', 'value', 'experience'],
+    id: 'job-search-interview',
+    label: 'Job Search / Interview',
+    purpose: 'Use general job-search language for fit, motivation, experience, availability, and next steps.',
+    keywords: ['interview', 'job', 'fit', 'role', 'work', 'value', 'experience', 'available', 'apply'],
   },
   {
-    id: 'ask-questions',
-    label: 'Ask Questions',
-    purpose: 'Ask natural follow-up and clarification questions.',
-    keywords: ['question', 'ask', 'follow', 'clarify', 'why', 'how'],
+    id: 'daily-questions',
+    label: 'Daily Questions',
+    purpose: 'Ask common but useful daily questions naturally, including time, plans, needs, and follow-ups.',
+    keywords: ['question', 'ask', 'follow', 'clarify', 'plan', 'need', 'how long', 'where', 'when'],
   },
   {
-    id: 'personal-reflection',
-    label: 'Personal Reflection',
-    purpose: 'Talk about change, realization, feeling, and personal growth.',
-    keywords: ['growth', 'change', 'realize', 'feeling', 'reflect', 'time'],
+    id: 'part-time-service-job',
+    label: 'Part-time Service Job',
+    purpose: 'Practice practical language for bar, restaurant, cafe, retail, and clothing-store part-time work.',
+    keywords: ['part-time', 'bar', 'restaurant', 'cafe', 'retail', 'clothing', 'customer', 'shift', 'service'],
   },
   {
     id: 'daily-small-talk',
@@ -78,6 +78,12 @@ const PRACTICE_GOALS = [
     label: 'Workplace Communication',
     purpose: 'Communicate clearly in meetings, support, sales, and collaboration.',
     keywords: ['workplace', 'meeting', 'support', 'sales', 'team', 'suggest'],
+  },
+  {
+    id: 'personal-reflection',
+    label: 'Personal Reflection',
+    purpose: 'Talk about change, realization, feeling, and personal growth.',
+    keywords: ['growth', 'change', 'realize', 'feeling', 'reflect', 'time'],
   },
 ];
 
@@ -292,9 +298,10 @@ function scoreAssetForGoal(asset, goal) {
   if (asset.comboRole === 'framework') score += 2;
   if (asset.comboRole === 'opener') score += 2;
   if (asset.comboRole === 'reason') score += 2;
-  if (asset.comboRole === 'question' && goal.id === 'ask-questions') score += 5;
+  if (asset.comboRole === 'question' && goal.id === 'daily-questions') score += 5;
   if (asset.type === 'Framework') score += 2;
-  if (asset.type === 'Question Pattern' && goal.id === 'ask-questions') score += 4;
+  if (asset.type === 'Framework' && toText(asset.sourceType) === 'Structure') score += 4;
+  if (asset.type === 'Question Pattern' && goal.id === 'daily-questions') score += 4;
 
   return score;
 }
@@ -340,6 +347,74 @@ function getAssetListenText(asset) {
 
   const uniqueParts = [...new Set(parts)];
   return uniqueParts.join(' ') || toText(asset?.text);
+}
+
+function buildStructureAssets(structurePlan, structureDraft, practiceGoal) {
+  if (!structurePlan) return [];
+
+  const goal = getPracticeGoal(practiceGoal);
+  const layers = Array.isArray(structurePlan.layers) ? structurePlan.layers : [];
+  const spokenText = toText(structureDraft) || toText(structurePlan.sampleAnswer);
+  const path = toTextArray(structurePlan.bigToSmallPath);
+  const title = toText(structurePlan.title) || 'Reusable speaking frame';
+  const sharedScenarios = [
+    goal.label,
+    'Recombination practice',
+    'Speaking practice',
+    ...toTextArray(structurePlan.scenarios),
+  ];
+
+  const framework = normalizeAsset(
+    {
+      type: 'Framework',
+      text: title,
+      sourceSentence: spokenText,
+      functionName: '表达框架 - Reusable speaking frame',
+      expressionFunction: 'Organize a complete answer and reuse it in new situations',
+      comboRole: 'framework',
+      rootPattern: path.length > 0 ? path.join(' -> ') : layers.map((layer) => toText(layer.name)).join(' -> '),
+      scenarios: sharedScenarios,
+      examples: [spokenText].filter(Boolean),
+      tags: ['structure', 'framework', 'recombine', goal.id],
+      difficulty: 'B1-B2',
+      theme: toText(structurePlan.goal) || goal.label,
+      notes: toText(structurePlan.practicePrompt) || 'Saved from Structure practice.',
+    },
+    { sourceType: 'Structure' }
+  );
+
+  const sentenceAssets = layers
+    .slice(0, MAX_RECOMBINE_ASSETS - 1)
+    .map((layer, index) =>
+      normalizeAsset(
+        {
+          type: 'Pattern',
+          text: toText(layer.sentence),
+          sourceSentence: toText(layer.sentence),
+          functionName: toText(layer.name) || `Move ${index + 1}`,
+          expressionFunction: toText(layer.purpose) || 'Reusable sentence move inside a speaking frame',
+          comboRole:
+            index === 0
+              ? 'opener'
+              : index === layers.length - 1
+                ? 'closing'
+                : toText(layer.name).toLowerCase().includes('reason')
+                  ? 'reason'
+                  : 'detail',
+          rootPattern: toText(layer.sentence),
+          scenarios: sharedScenarios,
+          examples: [toText(layer.smallerMove), ...toTextArray(layer.recommendedAssets)].filter(Boolean),
+          tags: ['structure-sentence', 'native-frame', goal.id],
+          difficulty: 'B1-B2',
+          theme: title,
+          notes: 'Sentence move generated from a Structure frame. Use it with the Framework asset in Recombination.',
+        },
+        { sourceType: 'Structure' }
+      )
+    )
+    .filter((asset) => asset.text);
+
+  return [framework, ...sentenceAssets].slice(0, MAX_RECOMBINE_ASSETS);
 }
 
 function friendlyErrorMessage(value, fallback) {
@@ -839,38 +914,44 @@ function App() {
   async function saveStructureAsAsset() {
     if (!structurePlan) return;
 
-    const text = toText(structureDraft) || toText(structurePlan.sampleAnswer);
-    const asset = normalizeAsset(
-      {
-        type: 'Framework',
-        text: toText(structurePlan.title),
-        sourceSentence: text,
-        functionName: '表达架构 - Structure expression framework',
-        expressionFunction: 'Build a big-to-small answer',
-        comboRole: 'framework',
-        rootPattern: structurePlan.layers.map((layer) => toText(layer.name)).join(' -> '),
-        scenarios: [getPracticeGoal(practiceGoal).label, 'Speaking practice', 'Personal expression'],
-        examples: [text].filter(Boolean),
-        tags: ['structure', 'big-to-small', 'output'],
-        difficulty: 'B1-B2',
-        theme: toText(structurePlan.goal),
-        notes: 'Saved from Structure practice.',
-      },
-      { sourceType: 'Structure' }
-    );
-
-    const next = [asset, ...(Array.isArray(assets) ? assets : [])];
+    const newAssets = buildStructureAssets(structurePlan, structureDraft, practiceGoal);
+    const next = [...newAssets, ...(Array.isArray(assets) ? assets : [])];
 
     try {
-      const savedAssets = await persistNewAssets(next, [asset]);
+      const savedAssets = await persistNewAssets(next, newAssets);
       setAssets(savedAssets);
-      setNotice({ type: 'success', message: 'Saved this structure as a Framework asset.' });
+      setNotice({ type: 'success', message: 'Saved this structure as a Framework set.' });
       setTab('assets');
     } catch (err) {
       console.error('saveStructureAsAsset error:', err);
       setNotice({
         type: 'error',
         message: friendlyErrorMessage(err.message, 'Structure save failed. Please try again.'),
+      });
+    }
+  }
+
+  async function practiceStructureFrame() {
+    if (!structurePlan) return;
+
+    const newAssets = buildStructureAssets(structurePlan, structureDraft, practiceGoal);
+    const next = [...newAssets, ...(Array.isArray(assets) ? assets : [])];
+
+    try {
+      const savedAssets = await persistNewAssets(next, newAssets);
+      setAssets(savedAssets);
+      setSelectedAssetIds(newAssets.map((asset) => asset.id));
+      setPractice(null);
+      setTab('recombine');
+      setNotice({
+        type: 'success',
+        message: 'Structure frame is ready in Recombination. Generate a practice to reuse it in a new scene.',
+      });
+    } catch (err) {
+      console.error('practiceStructureFrame error:', err);
+      setNotice({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Could not prepare this frame for Recombination.'),
       });
     }
   }
@@ -1243,6 +1324,7 @@ function App() {
             structureLoading={structureLoading}
             generateStructurePlan={generateStructurePlan}
             saveStructureAsAsset={saveStructureAsAsset}
+            practiceStructureFrame={practiceStructureFrame}
           />
         )}
 
@@ -1991,6 +2073,7 @@ function StructurePage({
   structureLoading,
   generateStructurePlan,
   saveStructureAsAsset,
+  practiceStructureFrame,
 }) {
   const currentGoal = getPracticeGoal(practiceGoal);
   const assetCount = Array.isArray(assets) ? assets.length : 0;
@@ -2096,10 +2179,16 @@ function StructurePage({
                   onChange={(e) => setStructureDraft(e.target.value)}
                   placeholder="Rewrite this structure in your own words..."
                 />
-                <button className="save-button" onClick={saveStructureAsAsset}>
-                  <Save size={18} />
-                  Save Framework Asset
-                </button>
+                <div className="structure-actions">
+                  <button className="save-button" onClick={practiceStructureFrame}>
+                    <Shuffle size={18} />
+                    Practice This Frame
+                  </button>
+                  <button className="ghost-button" onClick={saveStructureAsAsset}>
+                    <Save size={18} />
+                    Save Framework Set
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -2150,7 +2239,8 @@ function LivePracticePage({
               <option value="interview">Interview</option>
               <option value="daily-conversation">Daily Conversation</option>
               <option value="explain-opinion">Explain Opinion</option>
-              <option value="ask-questions">Ask Questions</option>
+              <option value="daily-questions">Daily Questions</option>
+              <option value="part-time-service-job">Part-time Service Job</option>
             </select>
             <p>Choose the situation before starting the call.</p>
           </div>
@@ -2587,8 +2677,20 @@ function RecombinePage({
   setPracticeGoal,
 }) {
   const safeAssets = Array.isArray(assets) ? assets : [];
+  const [assetFilter, setAssetFilter] = useState('all');
   const currentGoal = getPracticeGoal(practiceGoal);
   const recommendedCombo = getRecommendedCombo(safeAssets, practiceGoal);
+  const filteredAssets = safeAssets.filter((asset) => {
+    const type = normalizeAssetType(asset.type);
+    const sourceType = toText(asset.sourceType);
+    const tags = Array.isArray(asset.tags) ? asset.tags.map((tag) => toText(tag).toLowerCase()) : [];
+
+    if (assetFilter === 'frameworks') return type === 'Framework';
+    if (assetFilter === 'structure') return sourceType === 'Structure' || tags.includes('structure-sentence');
+    if (assetFilter === 'questions') return type === 'Question Pattern';
+    if (assetFilter === 'chunks') return type === 'Chunk' || type === 'Pattern' || type === 'Native Expression';
+    return true;
+  });
   const selectedCount = selectedAssetIds.length;
   const canGenerate =
     selectedCount >= MIN_RECOMBINE_ASSETS &&
@@ -2625,8 +2727,26 @@ function RecombinePage({
               </button>
             </div>
 
+            <div className="asset-filter-row">
+              {[
+                ['all', 'All'],
+                ['frameworks', 'Frameworks'],
+                ['structure', 'Structure Set'],
+                ['questions', 'Questions'],
+                ['chunks', 'Chunks'],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  className={assetFilter === id ? 'filter-pill active' : 'filter-pill'}
+                  onClick={() => setAssetFilter(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div className="select-list">
-              {safeAssets.map((a) => {
+              {filteredAssets.map((a) => {
                 const isSelected = selectedAssetIds.includes(a.id);
                 const isDisabled = !isSelected && selectedCount >= MAX_RECOMBINE_ASSETS;
 
@@ -2647,6 +2767,11 @@ function RecombinePage({
                   </button>
                 );
               })}
+              {filteredAssets.length === 0 && (
+                <div className="mini-section">
+                  <p>No assets in this filter yet. Build and save a Structure frame first.</p>
+                </div>
+              )}
             </div>
           </div>
 
