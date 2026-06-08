@@ -401,12 +401,12 @@ function buildStructureLearningNotes(structurePlan) {
   const reuseSteps = toTextArray(explanation.reuseSteps);
 
   return [
-    toText(explanation.whyThisFrameZh) && `为什么用这个框架: ${toText(explanation.whyThisFrameZh)}`,
-    route && `表达路线: ${route}`,
-    toText(explanation.howToUseZh) && `怎么练: ${toText(explanation.howToUseZh)}`,
-    reuseSteps.length > 0 && `复用步骤: ${reuseSteps.join(' / ')}`,
-    toText(explanation.commonMistakeZh) && `避免的问题: ${toText(explanation.commonMistakeZh)}`,
-    sentenceLines.length > 0 && `母句型:\n${sentenceLines.join('\n')}`,
+    toText(explanation.whyThisFrameZh) && `Why this frame works: ${toText(explanation.whyThisFrameZh)}`,
+    route && `Speaking route: ${route}`,
+    toText(explanation.howToUseZh) && `How to practice: ${toText(explanation.howToUseZh)}`,
+    reuseSteps.length > 0 && `Reuse steps: ${reuseSteps.join(' / ')}`,
+    toText(explanation.commonMistakeZh) && `Common trap: ${toText(explanation.commonMistakeZh)}`,
+    sentenceLines.length > 0 && `Native sentence frameworks:\n${sentenceLines.join('\n')}`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -2387,7 +2387,7 @@ function StructurePage({
                   <p className="eyebrow">Learning Explanation</p>
                   {structurePlan.learningExplanation?.whyThisFrameZh && (
                     <div className="explain-row">
-                      <strong>为什么用这个框架</strong>
+                      <strong>Why this frame works</strong>
                       <p onMouseUp={() => handleStructureSelection('explain-why')}>
                         {toText(structurePlan.learningExplanation.whyThisFrameZh)}
                       </p>
@@ -2396,7 +2396,7 @@ function StructurePage({
                   )}
                   {structurePlan.learningExplanation?.howToUseZh && (
                     <div className="explain-row">
-                      <strong>你应该怎么练</strong>
+                      <strong>How to practice it</strong>
                       <p onMouseUp={() => handleStructureSelection('explain-how')}>
                         {toText(structurePlan.learningExplanation.howToUseZh)}
                       </p>
@@ -2406,7 +2406,7 @@ function StructurePage({
                   {Array.isArray(structurePlan.learningExplanation?.reuseSteps) &&
                     structurePlan.learningExplanation.reuseSteps.length > 0 && (
                       <div className="explain-row">
-                        <strong>复用步骤</strong>
+                        <strong>Reuse steps</strong>
                         <div className="pill-row">
                           {structurePlan.learningExplanation.reuseSteps.map((step) => (
                             <span className="pill" key={toText(step)}>
@@ -2418,7 +2418,7 @@ function StructurePage({
                     )}
                   {structurePlan.learningExplanation?.commonMistakeZh && (
                     <div className="explain-row">
-                      <strong>容易卡住的地方</strong>
+                      <strong>Common trap</strong>
                       <p onMouseUp={() => handleStructureSelection('explain-mistake')}>
                         {toText(structurePlan.learningExplanation.commonMistakeZh)}
                       </p>

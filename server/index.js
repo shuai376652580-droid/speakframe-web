@@ -378,6 +378,7 @@ Return ONLY raw JSON.
 Do not use markdown.
 Do not use code block.
 Do not add explanation outside JSON.
+All user-facing values in this JSON must be English, including title, goal, situationType, useWhen, learningExplanation, practicePrompt, transferPractice, and fullSpokenVersion.
 
 JSON format:
 
@@ -834,13 +835,13 @@ Rules:
 2. coreFrame.route must show the speaking route in 4-6 short move names, for example: Intention -> Limitation -> Strength -> Specific example -> Next step.
 3. highValueSentences must contain 4-6 native compressed sentence frameworks. They should be longer than tiny sentences, natural, and reusable by swapping words.
 4. Prefer high-value frames like: "I've been thinking about...", "Even though..., I still think...", "At first..., but after..., I started to...", "One thing I find challenging is..., not because..., but because...", "It started as..., but it turned into...", "So my next step is..., even if..., because...".
-5. learningExplanation must be in Chinese. It should explain why this frame fits the situation, how to study it, how to swap it, and one common mistake to avoid. This is learning guidance, not grammar lecture.
+5. learningExplanation must be in clear English. It should explain why this frame fits the situation, how to study it, how to swap it, and one common mistake to avoid. This is learning guidance, not grammar lecture.
 6. Each highValueSentences item must explain the function, why it is useful, replaceable slots, scenarios, and useful chunks. Make the learner understand when to use the sentence.
 7. fullSpokenVersion must combine these sentences into one natural spoken paragraph that can describe a complex thing clearly.
 8. transferPractice must give 3 scene swaps so the same frame can move to another situation.
 9. For job-search-interview, include practical language for fit, motivation, experience, availability, and asking about opportunities.
 10. Keep the style natural, practical, and reusable for Chinese learners. No grammar lecture.
-11. If the user writes Chinese, still return English sentences, with concise Chinese-friendly labels where helpful.
+11. If the user writes Chinese, infer the meaning but return the whole Structure result in English. Chinese should only appear in /api/translate-selection, not in this Structure result.
 `);
 
     const data = safeParseJson(rawText);
