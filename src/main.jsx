@@ -91,6 +91,93 @@ const PRACTICE_GOALS = ASSET_GOALS.filter((goal) =>
   ['job-search-interview', 'workplace-communication', 'daily-small-talk', 'personal-reflection'].includes(goal.id)
 );
 
+const LIVE_SCENES = [
+  {
+    id: 'part-time-service-job',
+    label: 'Part-time Service Job',
+    prompt: 'Practice a real voice call for restaurant, bar, cafe, retail, or service work.',
+  },
+  {
+    id: 'job-search-interview',
+    label: 'Job Interview',
+    prompt: 'Practice interview questions about fit, motivation, experience, and availability.',
+  },
+  {
+    id: 'daily-small-talk',
+    label: 'Daily Small Talk',
+    prompt: 'Practice natural back-and-forth about everyday moments.',
+  },
+  {
+    id: 'workplace-communication',
+    label: 'Work Communication',
+    prompt: 'Practice updates, clarification, suggestions, and work conversations.',
+  },
+  {
+    id: 'personal-reflection',
+    label: 'Personal Reflection',
+    prompt: 'Practice explaining feelings, changes, decisions, and personal growth.',
+  },
+];
+
+const LIVE_FOCUS_OPTIONS = [
+  {
+    id: 'question-understanding',
+    label: 'Question Understanding',
+    prompt: 'The coach asks short realistic questions. The learner practices understanding and answering quickly.',
+  },
+  {
+    id: 'natural-response',
+    label: 'Natural Response',
+    prompt: 'The coach gives light corrections and helps the learner sound more natural.',
+  },
+  {
+    id: 'chunk-practice',
+    label: 'Chunk Practice',
+    prompt: 'The coach highlights one or two useful chunks and makes the learner reuse them.',
+  },
+  {
+    id: 'shadowing',
+    label: 'Shadowing',
+    prompt: 'The coach gives one natural line and asks the learner to repeat or adapt it.',
+  },
+  {
+    id: 'rescue-in-chinese',
+    label: 'Rescue in Chinese',
+    prompt: 'If the learner gets stuck, they can ask in Chinese and the coach gives a natural English line.',
+  },
+];
+
+function getLiveScene(id) {
+  return LIVE_SCENES.find((scene) => scene.id === id) || LIVE_SCENES[0];
+}
+
+function getLiveFocus(id) {
+  return LIVE_FOCUS_OPTIONS.find((focus) => focus.id === id) || LIVE_FOCUS_OPTIONS[0];
+}
+
+function getLiveOpening(sceneId, focusId) {
+  const scene = getLiveScene(sceneId);
+  const focus = getLiveFocus(focusId);
+
+  if (scene.id === 'part-time-service-job') {
+    return `Hi, thanks for calling. Let's practice ${scene.label}. Focus: ${focus.label}. First question: are you looking for part-time work right now?`;
+  }
+
+  if (scene.id === 'job-search-interview') {
+    return `Hi, welcome. Let's practice ${scene.label}. Focus: ${focus.label}. First question: can you tell me a little about yourself and what kind of role you are looking for?`;
+  }
+
+  if (scene.id === 'daily-small-talk') {
+    return `Hi, good to hear from you. Let's practice ${scene.label}. Focus: ${focus.label}. First question: what is something small that happened to you recently?`;
+  }
+
+  if (scene.id === 'workplace-communication') {
+    return `Hi, let's practice ${scene.label}. Focus: ${focus.label}. First question: what is one update or problem you need to explain at work?`;
+  }
+
+  return `Hi, let's practice ${scene.label}. Focus: ${focus.label}. First question: what is something you have been thinking about recently?`;
+}
+
 const initialMessages = [
   {
     id: uid(),
@@ -537,10 +624,12 @@ function App() {
   const [structurePlan, setStructurePlan] = useState(null);
   const [structureDraft, setStructureDraft] = useState('');
   const [liveMessages, setLiveMessages] = useState([]);
-  const [liveScenario, setLiveScenario] = useState('technical-sales');
+  const [liveScenario, setLiveScenario] = useState('part-time-service-job');
+  const [liveFocus, setLiveFocus] = useState('question-understanding');
   const [liveActive, setLiveActive] = useState(false);
   const [liveListening, setLiveListening] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
+  const [liveMuted, setLiveMuted] = useState(false);
   const [liveSummary, setLiveSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
@@ -553,6 +642,37 @@ function App() {
   const [notice, setNotice] = useState(null);
   const recognitionRef = useRef(null);
   const liveRecognitionRef = useRef(null);
+  const liveActiveRef = useRef(false);
+  const liveLoadingRef = useRef(false);
+  const liveMutedRef = useRef(false);
+  const liveSpeakingRef = useRef(false);
+  const liveShouldListenRef = useRef(false);
+  const liveRestartTimerRef = useRef(null);
+  const liveMessagesRef = useRef([]);
+
+  useEffect(() => {
+    liveActiveRef.current = liveActive;
+  }, [liveActive]);
+
+  useEffect(() => {
+    liveLoadingRef.current = liveLoading;
+  }, [liveLoading]);
+
+  useEffect(() => {
+    liveMutedRef.current = liveMuted;
+  }, [liveMuted]);
+
+  useEffect(() => {
+    liveMessagesRef.current = liveMessages;
+  }, [liveMessages]);
+
+  useEffect(() => () => {
+    if (liveRestartTimerRef.current) {
+      window.clearTimeout(liveRestartTimerRef.current);
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (liveRecognitionRef.current) liveRecognitionRef.current.stop();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1139,26 +1259,75 @@ function App() {
     recognition.start();
   }
 
-  function speakLive(text) {
-    if (!text || !window.speechSynthesis) return;
+  function clearLiveRestartTimer() {
+    if (liveRestartTimerRef.current) {
+      window.clearTimeout(liveRestartTimerRef.current);
+      liveRestartTimerRef.current = null;
+    }
+  }
+
+  function scheduleLiveListening(delay = 450) {
+    clearLiveRestartTimer();
+    if (
+      !liveShouldListenRef.current ||
+      !liveActiveRef.current ||
+      liveMutedRef.current ||
+      liveLoadingRef.current ||
+      liveSpeakingRef.current
+    ) {
+      return;
+    }
+
+    liveRestartTimerRef.current = window.setTimeout(() => {
+      startLiveListening();
+    }, delay);
+  }
+
+  function speakLive(text, afterSpeak) {
+    if (!text) {
+      afterSpeak?.();
+      return;
+    }
+
+    liveSpeakingRef.current = true;
+    stopLiveListening({ keepAuto: true });
+
+    if (!window.speechSynthesis) {
+      liveSpeakingRef.current = false;
+      afterSpeak?.();
+      return;
+    }
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
     utterance.rate = 0.92;
     utterance.pitch = 1;
+    utterance.onstart = () => {
+      liveSpeakingRef.current = true;
+    };
+    utterance.onend = () => {
+      liveSpeakingRef.current = false;
+      afterSpeak?.();
+    };
+    utterance.onerror = () => {
+      liveSpeakingRef.current = false;
+      afterSpeak?.();
+    };
     window.speechSynthesis.speak(utterance);
   }
 
   async function sendLiveTurn(transcript) {
     const userText = toText(transcript);
-    if (!userText || liveLoading) return;
+    if (!userText || liveLoadingRef.current) return;
 
     const userMessage = { id: uid(), role: 'user', content: userText };
-    const nextMessages = [...liveMessages, userMessage];
+    const nextMessages = [...liveMessagesRef.current, userMessage];
 
     setLiveMessages(nextMessages);
+    liveMessagesRef.current = nextMessages;
     setLiveLoading(true);
+    liveLoadingRef.current = true;
     setNotice(null);
 
     try {
@@ -1167,6 +1336,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scenario: liveScenario,
+          focus: liveFocus,
           messages: nextMessages.map((message) => ({
             role: message.role,
             content: toText(message.content),
@@ -1187,8 +1357,15 @@ function App() {
         rescue: data.rescue || null,
       };
 
-      setLiveMessages((prev) => [...prev, assistantMessage]);
-      speakLive(assistantMessage.content);
+      setLiveMessages((prev) => {
+        const updated = [...prev, assistantMessage];
+        liveMessagesRef.current = updated;
+        return updated;
+      });
+      speakLive(assistantMessage.content, () => {
+        liveShouldListenRef.current = true;
+        scheduleLiveListening();
+      });
     } catch (err) {
       console.error('sendLiveTurn error:', err);
       setNotice({
@@ -1198,25 +1375,37 @@ function App() {
           'Live practice failed. Please check the server connection and API key.'
         ),
       });
+      liveShouldListenRef.current = true;
+      scheduleLiveListening(900);
     } finally {
       setLiveLoading(false);
+      liveLoadingRef.current = false;
     }
   }
 
   async function startLiveSession() {
+    clearLiveRestartTimer();
+    liveShouldListenRef.current = true;
+    liveActiveRef.current = true;
     setLiveActive(true);
+    setLiveMuted(false);
     setLiveSummary(null);
     const opening = {
       id: uid(),
       role: 'assistant',
-      content:
-        'Let us practice like a voice call. I will ask you questions, and if you get stuck, you can ask in Chinese and I will help you say it naturally in English. First, tell me a little about yourself.',
+      content: getLiveOpening(liveScenario, liveFocus),
     };
     setLiveMessages([opening]);
-    speakLive(opening.content);
+    liveMessagesRef.current = [opening];
+    speakLive(opening.content, () => scheduleLiveListening());
   }
 
-  function stopLiveListening() {
+  function stopLiveListening(options = {}) {
+    const { keepAuto = false } = options;
+    if (!keepAuto) {
+      liveShouldListenRef.current = false;
+    }
+    clearLiveRestartTimer();
     if (liveRecognitionRef.current) {
       liveRecognitionRef.current.stop();
     }
@@ -1224,6 +1413,17 @@ function App() {
   }
 
   function startLiveListening() {
+    if (
+      !liveShouldListenRef.current ||
+      !liveActiveRef.current ||
+      liveMutedRef.current ||
+      liveLoadingRef.current ||
+      liveSpeakingRef.current ||
+      liveRecognitionRef.current
+    ) {
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
@@ -1231,11 +1431,6 @@ function App() {
         type: 'error',
         message: 'Live voice input is not supported in this browser. Chrome or Edge should work better.',
       });
-      return;
-    }
-
-    if (liveListening) {
-      stopLiveListening();
       return;
     }
 
@@ -1256,32 +1451,65 @@ function App() {
         .trim();
 
       if (transcript) {
+        liveShouldListenRef.current = false;
         sendLiveTurn(transcript);
       }
     };
 
     recognition.onerror = () => {
-      setNotice({
-        type: 'error',
-        message: 'Live voice failed. Please check microphone permission and try again.',
-      });
+      if (liveActiveRef.current) {
+        setNotice({
+          type: 'error',
+          message: 'Live voice failed. Please check microphone permission and try again.',
+        });
+      }
     };
 
     recognition.onend = () => {
       setLiveListening(false);
       liveRecognitionRef.current = null;
+      if (
+        liveActiveRef.current &&
+        liveShouldListenRef.current &&
+        !liveMutedRef.current &&
+        !liveLoadingRef.current &&
+        !liveSpeakingRef.current
+      ) {
+        scheduleLiveListening(550);
+      }
     };
 
     liveRecognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (err) {
+      liveRecognitionRef.current = null;
+      setLiveListening(false);
+    }
+  }
+
+  function toggleLiveMute() {
+    const nextMuted = !liveMutedRef.current;
+    liveMutedRef.current = nextMuted;
+    setLiveMuted(nextMuted);
+
+    if (nextMuted) {
+      stopLiveListening({ keepAuto: true });
+    } else {
+      liveShouldListenRef.current = true;
+      scheduleLiveListening(100);
+    }
   }
 
   async function endLiveSession() {
+    liveShouldListenRef.current = false;
     stopLiveListening();
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    liveSpeakingRef.current = false;
+    liveActiveRef.current = false;
     setLiveActive(false);
 
-    if (liveMessages.length < 2) return;
+    if (liveMessagesRef.current.length < 2) return;
 
     setLiveLoading(true);
 
@@ -1291,7 +1519,8 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scenario: liveScenario,
-          messages: liveMessages.map((message) => ({
+          focus: liveFocus,
+          messages: liveMessagesRef.current.map((message) => ({
             role: message.role,
             content: toText(message.content),
           })),
@@ -1470,13 +1699,16 @@ function App() {
           <LivePracticePage
             scenario={liveScenario}
             setScenario={setLiveScenario}
+            focus={liveFocus}
+            setFocus={setLiveFocus}
             messages={liveMessages}
             active={liveActive}
             listening={liveListening}
             loading={liveLoading}
+            muted={liveMuted}
             summary={liveSummary}
             startSession={startLiveSession}
-            startListening={startLiveListening}
+            toggleMute={toggleLiveMute}
             endSession={endLiveSession}
             saveAsset={saveLiveAsset}
           />
@@ -2572,17 +2804,31 @@ function StructurePage({
 function LivePracticePage({
   scenario,
   setScenario,
+  focus,
+  setFocus,
   messages,
   active,
   listening,
   loading,
+  muted,
   summary,
   startSession,
-  startListening,
+  toggleMute,
   endSession,
   saveAsset,
 }) {
   const summaryAssets = Array.isArray(summary?.assets) ? summary.assets : [];
+  const currentScene = getLiveScene(scenario);
+  const currentFocus = getLiveFocus(focus);
+  const statusText = !active
+    ? 'Ready'
+    : loading
+      ? 'Coach is thinking'
+      : muted
+        ? 'Microphone muted'
+        : listening
+          ? 'Listening now'
+          : 'Connecting microphone';
 
   return (
     <section className="page">
@@ -2597,23 +2843,34 @@ function LivePracticePage({
             <div className={active ? 'live-orb active' : 'live-orb'}>
               <Phone size={30} />
             </div>
-            <h3>{active ? 'Voice practice is live' : 'Ready for a voice call'}</h3>
+            <h3>{active ? statusText : 'Ready for a voice call'}</h3>
             <p>
-              Use it like a phone call. If you cannot say something, ask in Chinese and the coach will rescue the expression.
+              Once the call starts, just talk. The coach listens, replies, and keeps the scene moving like a phone call.
             </p>
           </div>
 
           <div className="goal-selector">
             <label>Practice Scene</label>
             <select value={scenario} onChange={(e) => setScenario(e.target.value)} disabled={active}>
-              <option value="technical-sales">Technical Sales</option>
-              <option value="interview">Interview</option>
-              <option value="daily-conversation">Daily Conversation</option>
-              <option value="explain-opinion">Explain Opinion</option>
-              <option value="daily-questions">Daily Questions</option>
-              <option value="part-time-service-job">Part-time Service Job</option>
+              {LIVE_SCENES.map((scene) => (
+                <option key={scene.id} value={scene.id}>
+                  {scene.label}
+                </option>
+              ))}
             </select>
-            <p>Choose the situation before starting the call.</p>
+            <p>{currentScene.prompt}</p>
+          </div>
+
+          <div className="goal-selector">
+            <label>Practice Focus</label>
+            <select value={focus} onChange={(e) => setFocus(e.target.value)} disabled={active}>
+              {LIVE_FOCUS_OPTIONS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <p>{currentFocus.prompt}</p>
           </div>
 
           {!active ? (
@@ -2624,12 +2881,12 @@ function LivePracticePage({
           ) : (
             <div className="live-call-actions">
               <button
-                className={listening ? 'live-talk-button listening' : 'live-talk-button'}
-                onClick={startListening}
+                className={listening && !muted ? 'live-talk-button listening' : 'live-talk-button'}
+                onClick={toggleMute}
                 disabled={loading}
               >
                 <Mic size={22} />
-                {listening ? 'Listening...' : 'Tap To Speak'}
+                {muted ? 'Resume Mic' : listening ? 'Listening...' : 'Mic Connecting'}
               </button>
 
               <button className="ghost-button" onClick={endSession} disabled={loading}>

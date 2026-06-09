@@ -1007,6 +1007,7 @@ Rules:
 app.post("/api/live-practice", async (req, res) => {
   try {
     const scenario = toText(req.body?.scenario) || "daily-conversation";
+    const focus = toText(req.body?.focus) || "question-understanding";
     const messages = Array.isArray(req.body?.messages)
       ? req.body.messages
           .slice(-16)
@@ -1033,6 +1034,9 @@ The learner may speak English, or ask in Chinese when stuck.
 Scenario:
 ${scenario}
 
+Focus:
+${focus}
+
 Conversation:
 ${JSON.stringify(messages)}
 
@@ -1055,9 +1059,21 @@ Rules:
 1. reply must be spoken English only, natural and short enough for voice.
 2. If the learner uses Chinese to ask how to say something, treat it as expression rescue.
 3. For expression rescue, give the natural English sentence, a reusable pattern, then ask them to try again.
-4. If the learner answers in English, respond like a supportive conversation partner and ask one clear follow-up question.
-5. Do not give long explanations.
-6. Keep the conversation moving.
+4. If the learner answers in English, give at most one short correction or natural version, then ask one clear follow-up question.
+5. Adapt to focus:
+   - question-understanding: ask realistic questions and keep them short.
+   - natural-response: help the learner answer more naturally.
+   - chunk-practice: include one useful chunk and ask the learner to reuse it.
+   - shadowing: give one short line and ask the learner to repeat or adapt it.
+   - rescue-in-chinese: be ready to rescue Chinese questions with natural English.
+6. Adapt to scenario:
+   - part-time-service-job: bar, restaurant, cafe, retail, service work, availability, customers, shifts.
+   - job-search-interview: fit, motivation, experience, availability, strengths.
+   - daily-small-talk: everyday moments, follow-up questions, natural reactions.
+   - workplace-communication: updates, problems, clarification, suggestions.
+   - personal-reflection: feelings, changes, decisions, lessons.
+7. Do not give long explanations.
+8. Keep the conversation moving like a phone call.
 `);
 
     const data = safeParseJson(rawText);
@@ -1087,6 +1103,7 @@ Rules:
 app.post("/api/live-summary", async (req, res) => {
   try {
     const scenario = toText(req.body?.scenario) || "daily-conversation";
+    const focus = toText(req.body?.focus) || "question-understanding";
     const messages = Array.isArray(req.body?.messages)
       ? req.body.messages
           .map((item) => ({
@@ -1110,6 +1127,9 @@ Summarize the learner's voice-call practice and extract reusable expression asse
 
 Scenario:
 ${scenario}
+
+Focus:
+${focus}
 
 Transcript:
 ${JSON.stringify(messages)}
