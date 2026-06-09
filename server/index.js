@@ -1085,10 +1085,10 @@ app.post("/api/live-practice", async (req, res) => {
     }
 
     const rawText = await generateTextContent(`
-You are SpeakFrame's live voice-call English coach.
+You are SpeakFrame's Scenario Drill English coach.
 
-This is a real-time voice practice, like a phone call.
-The learner may speak English, or ask in Chinese when stuck.
+This is a stable speaking-output drill, not a live phone call.
+The learner reads/listens to a realistic question, types an answer, and may ask in Chinese when stuck.
 
 Scenario:
 ${scenario}
@@ -1106,39 +1106,61 @@ Do not use code block.
 JSON format:
 {
   "reply": "",
+  "naturalVersion": "",
+  "feedback": "",
+  "usefulChunks": [],
   "isRescue": false,
   "rescue": {
     "naturalExpression": "",
     "pattern": "",
     "tryAgainPrompt": ""
-  }
+  },
+  "assets": []
 }
 
 Rules:
-1. reply must be spoken English only, natural and short enough for voice.
-2. If the learner uses Chinese to ask how to say something, treat it as expression rescue.
-3. For expression rescue, give the natural English sentence, a reusable pattern, then ask them to try again.
-4. If the learner answers in English, give at most one short correction or natural version, then ask one clear follow-up question.
-5. Adapt to focus:
+1. reply is the next coach line: one short realistic follow-up question or retry prompt.
+2. naturalVersion rewrites the learner's answer into natural spoken English. Keep it 1-3 sentences.
+3. feedback explains briefly what improved and what expression function it serves.
+4. usefulChunks contains 2-5 reusable chunks or patterns from the natural version.
+5. If the learner uses Chinese to ask how to say something, treat it as expression rescue.
+6. For expression rescue, give the natural English sentence, a reusable pattern, then ask them to try again.
+7. Adapt to focus:
    - question-understanding: ask realistic questions and keep them short.
    - natural-response: help the learner answer more naturally.
    - chunk-practice: include one useful chunk and ask the learner to reuse it.
    - shadowing: give one short line and ask the learner to repeat or adapt it.
    - rescue-in-chinese: be ready to rescue Chinese questions with natural English.
-6. Adapt to scenario:
+8. Adapt to scenario:
    - part-time-service-job: bar, restaurant, cafe, retail, service work, availability, customers, shifts.
    - job-search-interview: fit, motivation, experience, availability, strengths.
    - daily-small-talk: everyday moments, follow-up questions, natural reactions.
    - workplace-communication: updates, problems, clarification, suggestions.
    - personal-reflection: feelings, changes, decisions, lessons.
-7. Do not give long explanations.
-8. Keep the conversation moving like a phone call.
+9. assets should include 1-3 saveable expression assets extracted from the learner's weak point or natural version.
+10. Each asset must use this shape:
+{
+  "type": "Chunk | Pattern | Native Expression | Question Pattern | Useful Sentence",
+  "text": "",
+  "sourceSentence": "",
+  "functionName": "",
+  "expressionFunction": "",
+  "rootPattern": "",
+  "scenarios": [],
+  "examples": [],
+  "tags": [],
+  "notes": ""
+}
+11. Keep explanations concise. This is a drill screen.
 `);
 
     const data = safeParseJson(rawText);
 
     res.json({
       reply: toText(data.reply) || "Good. Can you say a little more about that?",
+      naturalVersion: toText(data.naturalVersion),
+      feedback: toText(data.feedback),
+      usefulChunks: toTextArray(data.usefulChunks),
       isRescue: Boolean(data.isRescue),
       rescue: data.rescue && typeof data.rescue === "object"
         ? {
@@ -1147,6 +1169,18 @@ Rules:
             tryAgainPrompt: toText(data.rescue.tryAgainPrompt),
           }
         : null,
+      assets: normalizeGeneratedAssets(data.assets, "scenario-drill").map((asset) => ({
+        type: asset.recommendedType,
+        text: asset.assetText,
+        sourceSentence: asset.sourceSentence,
+        functionName: asset.functionName,
+        expressionFunction: asset.expressionFunction,
+        rootPattern: asset.rootPattern,
+        scenarios: asset.scenarios,
+        examples: asset.examples,
+        tags: asset.tags,
+        notes: asset.notes,
+      })),
     });
   } catch (err) {
     console.error("Live practice error:", err);
@@ -1180,9 +1214,9 @@ app.post("/api/live-summary", async (req, res) => {
     }
 
     const rawText = await generateTextContent(`
-You are SpeakFrame's live practice summarizer.
+You are SpeakFrame's scenario drill summarizer.
 
-Summarize the learner's voice-call practice and extract reusable expression assets.
+Summarize the learner's scenario output drill and extract reusable expression assets.
 
 Scenario:
 ${scenario}

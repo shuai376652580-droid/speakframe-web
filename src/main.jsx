@@ -20,7 +20,6 @@ import {
   SkipForward,
   Eye,
   EyeOff,
-  Phone,
 } from 'lucide-react';
 import './styles.css';
 
@@ -624,6 +623,7 @@ function App() {
   const [structurePlan, setStructurePlan] = useState(null);
   const [structureDraft, setStructureDraft] = useState('');
   const [liveMessages, setLiveMessages] = useState([]);
+  const [liveAnswer, setLiveAnswer] = useState('');
   const [liveScenario, setLiveScenario] = useState('part-time-service-job');
   const [liveFocus, setLiveFocus] = useState('question-understanding');
   const [liveActive, setLiveActive] = useState(false);
@@ -1452,6 +1452,15 @@ function App() {
         role: 'assistant',
         content: toText(data.reply),
         rescue: data.rescue || null,
+        naturalVersion: toText(data.naturalVersion),
+        feedback: toText(data.feedback),
+        usefulChunks: toTextArray(data.usefulChunks),
+        assets: normalizeAssetList(data.assets, {
+          sourceType: 'Drill',
+          functionName: 'Scenario drill expression',
+          expressionFunction: 'Improve spoken output in a real scene',
+          notes: 'Extracted from scenario output drill.',
+        }),
       };
 
       setLiveMessages((prev) => {
@@ -1460,8 +1469,7 @@ function App() {
         return updated;
       });
       speakLive(assistantMessage.content, () => {
-        liveShouldListenRef.current = true;
-        scheduleLiveListening();
+        liveShouldListenRef.current = false;
       });
     } catch (err) {
       console.error('sendLiveTurn error:', err);
@@ -1472,8 +1480,7 @@ function App() {
           'Live practice failed. Please check the server connection and API key.'
         ),
       });
-      liveShouldListenRef.current = true;
-      scheduleLiveListening(900);
+      liveShouldListenRef.current = false;
     } finally {
       setLiveLoading(false);
       liveLoadingRef.current = false;
@@ -1482,12 +1489,13 @@ function App() {
 
   async function startLiveSession() {
     clearLiveRestartTimer();
-    liveShouldListenRef.current = true;
+    liveShouldListenRef.current = false;
     liveActiveRef.current = true;
     setLiveActive(true);
     setLiveMuted(false);
     setLiveMicHint('');
     setLiveSummary(null);
+    setLiveAnswer('');
     setNotice(null);
     const opening = {
       id: uid(),
@@ -1496,7 +1504,7 @@ function App() {
     };
     setLiveMessages([opening]);
     liveMessagesRef.current = [opening];
-    speakLive(opening.content, () => scheduleLiveListening());
+    speakLive(opening.content);
   }
 
   function stopLiveListening(options = {}) {
@@ -1723,6 +1731,20 @@ function App() {
     }
   }
 
+  function submitLiveAnswer() {
+    const answer = toText(liveAnswer);
+    if (!answer || liveLoadingRef.current) return;
+    setLiveAnswer('');
+    sendLiveTurn(answer);
+  }
+
+  function replayLastCoachLine() {
+    const coachLine = [...liveMessagesRef.current]
+      .reverse()
+      .find((message) => message.role === 'assistant');
+    if (coachLine?.content) speakLive(coachLine.content);
+  }
+
   function toggleLiveMute() {
     const nextMuted = !liveMutedRef.current;
     liveMutedRef.current = nextMuted;
@@ -1774,10 +1796,10 @@ function App() {
       setLiveSummary({
         feedback: toText(data.feedback),
         assets: normalizeAssetList(data.assets, {
-          sourceType: 'Live',
-          functionName: 'Live practice expression',
-          expressionFunction: 'Fix or improve spoken expression',
-          notes: 'Extracted from live voice practice.',
+        sourceType: 'Live',
+        functionName: 'Live practice expression',
+        expressionFunction: 'Fix or improve spoken expression',
+          notes: 'Extracted from scenario output drill.',
         }),
       });
     } catch (err) {
@@ -1797,7 +1819,7 @@ function App() {
   async function saveLiveAsset(asset) {
     const normalized = normalizeAsset(asset, {
       sourceType: 'Live',
-      notes: 'Saved from live practice summary.',
+      notes: 'Saved from scenario drill summary.',
     });
     const next = [normalized, ...(Array.isArray(assets) ? assets : [])];
     try {
@@ -1939,17 +1961,15 @@ function App() {
             setScenario={setLiveScenario}
             focus={liveFocus}
             setFocus={setLiveFocus}
+            answer={liveAnswer}
+            setAnswer={setLiveAnswer}
             messages={liveMessages}
             active={liveActive}
-            listening={liveListening}
             loading={liveLoading}
-            muted={liveMuted}
-            micHint={liveMicHint}
             summary={liveSummary}
             startSession={startLiveSession}
-            toggleMute={toggleLiveMute}
-            retryMic={retryLiveMic}
-            sendCurrent={sendCurrentLiveRecording}
+            submitAnswer={submitLiveAnswer}
+            replayQuestion={replayLastCoachLine}
             endSession={endLiveSession}
             saveAsset={saveLiveAsset}
           />
@@ -1994,7 +2014,7 @@ function Sidebar({ tab, setTab, assetCount }) {
       items: [
         { id: 'structure', label: 'Structure', icon: Layers },
         { id: 'listen', label: 'Listen', icon: Headphones },
-        { id: 'live', label: 'Live Practice', icon: Phone },
+        { id: 'live', label: 'Scenario Drill', icon: MessageSquare },
         { id: 'recombine', label: 'Recombination', icon: Shuffle },
       ],
     },
@@ -3047,49 +3067,38 @@ function LivePracticePage({
   setScenario,
   focus,
   setFocus,
+  answer,
+  setAnswer,
   messages,
   active,
-  listening,
   loading,
-  muted,
-  micHint,
   summary,
   startSession,
-  toggleMute,
-  retryMic,
-  sendCurrent,
+  submitAnswer,
+  replayQuestion,
   endSession,
   saveAsset,
 }) {
   const summaryAssets = Array.isArray(summary?.assets) ? summary.assets : [];
   const currentScene = getLiveScene(scenario);
   const currentFocus = getLiveFocus(focus);
-  const statusText = !active
-    ? 'Ready'
-    : loading
-      ? 'Coach is thinking'
-      : muted
-        ? 'Microphone paused'
-        : listening
-          ? 'Listening now'
-          : 'Connecting microphone';
 
   return (
     <section className="page">
       <PageHeader
-        title="Live Practice"
-        subtitle="A voice-call style practice room. Speak in English, ask in Chinese when stuck, then save your weak points as assets."
+        title="Scenario Drill"
+        subtitle="Practice real scenes in a stable loop: listen to the question, answer, improve, then save useful expressions."
       />
 
       <div className="live-layout">
         <aside className="live-control">
           <div className="live-phone-card">
             <div className={active ? 'live-orb active' : 'live-orb'}>
-              <Phone size={30} />
+              <MessageSquare size={30} />
             </div>
-            <h3>{active ? statusText : 'Ready for a voice call'}</h3>
+            <h3>{active ? 'Drill in progress' : 'Ready for a scene drill'}</h3>
             <p>
-              Once the call starts, just talk. The coach listens, replies, and keeps the scene moving like a phone call.
+              The coach asks, you answer in writing, then SpeakFrame turns your answer into natural reusable English.
             </p>
           </div>
 
@@ -3119,38 +3128,25 @@ function LivePracticePage({
 
           {!active ? (
             <button className="save-button" onClick={startSession}>
-              <Phone size={18} />
-              Start Call
+              <Play size={18} />
+              Start Drill
             </button>
           ) : (
             <div className="live-call-actions">
-              <div className={listening && !muted ? 'live-talk-status listening' : 'live-talk-status'}>
-                <Mic size={22} />
-                <strong>{muted ? 'Mic paused' : listening ? 'Listening automatically' : 'Connecting microphone'}</strong>
-                <span>
-                  {toText(micHint) ||
-                    (muted ? 'Tap Resume Mic when you want to continue.' : 'Just speak after the coach finishes.')}
-                </span>
+              <div className="live-talk-status">
+                <Headphones size={22} />
+                <strong>Listen, answer, improve</strong>
+                <span>No microphone required. Use replay if you want to hear the question again.</span>
               </div>
 
-              <button className="ghost-button" onClick={toggleMute}>
-                <Mic size={18} />
-                {muted ? 'Resume Mic' : 'Pause Mic'}
+              <button className="ghost-button" onClick={replayQuestion} disabled={loading}>
+                <Play size={18} />
+                Replay Question
               </button>
 
-              <button className="ghost-button" onClick={retryMic} disabled={loading}>
-                <Phone size={18} />
-                Retry Mic
-              </button>
-
-              <button className="ghost-button" onClick={sendCurrent} disabled={!listening || loading || muted}>
-                <Mic size={18} />
-                Send Now
-              </button>
-
-              <button className="ghost-button" onClick={endSession} disabled={loading}>
+              <button className="ghost-button" onClick={endSession} disabled={loading || messages.length < 2}>
                 <Square size={18} />
-                End & Summarize
+                Summarize & Save
               </button>
             </div>
           )}
@@ -3165,11 +3161,40 @@ function LivePracticePage({
                 <div key={message.id} className={`live-message ${message.role}`}>
                   <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
                   <p>{toText(message.content)}</p>
+                  {message.naturalVersion && (
+                    <div className="expression-rescue">
+                      <strong>Natural version</strong>
+                      <p>{toText(message.naturalVersion)}</p>
+                    </div>
+                  )}
+                  {message.feedback && (
+                    <div className="expression-rescue">
+                      <strong>Why it works</strong>
+                      <p>{toText(message.feedback)}</p>
+                    </div>
+                  )}
+                  {Array.isArray(message.usefulChunks) && message.usefulChunks.length > 0 && (
+                    <div className="drill-chip-row">
+                      {message.usefulChunks.map((chunk) => (
+                        <span className="tag-pill" key={chunk}>{chunk}</span>
+                      ))}
+                    </div>
+                  )}
                   {message.rescue?.naturalExpression && (
                     <div className="expression-rescue">
                       <strong>Expression rescue</strong>
                       <p>{toText(message.rescue.naturalExpression)}</p>
                       {message.rescue.pattern && <small>{toText(message.rescue.pattern)}</small>}
+                    </div>
+                  )}
+                  {Array.isArray(message.assets) && message.assets.length > 0 && (
+                    <div className="drill-suggested-assets">
+                      {message.assets.map((asset) => (
+                        <button className="ghost-button small" key={asset.id} onClick={() => saveAsset(asset)}>
+                          <Save size={14} />
+                          Save {toText(asset.type) || 'Asset'}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -3183,6 +3208,26 @@ function LivePracticePage({
               </div>
             )}
           </div>
+
+          {active && (
+            <div className="drill-answer-panel">
+              <label>Your Answer</label>
+              <textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="Answer in English. If you get stuck, write Chinese like: 这句话怎么说..."
+                rows={4}
+                disabled={loading}
+              />
+              <div className="drill-answer-actions">
+                <p>Tip: short answer is fine. The coach will make it natural and give you the next question.</p>
+                <button className="save-button" onClick={submitAnswer} disabled={loading || !toText(answer)}>
+                  <Send size={18} />
+                  Submit Answer
+                </button>
+              </div>
+            </div>
+          )}
 
           {summary && (
             <div className="live-summary">
