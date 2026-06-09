@@ -1456,11 +1456,37 @@ function App() {
       }
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      const errorType = toText(event?.error);
+
+      if (errorType === 'not-allowed' || errorType === 'service-not-allowed') {
+        liveShouldListenRef.current = false;
+        liveMutedRef.current = true;
+        setLiveMuted(true);
+        setNotice({
+          type: 'error',
+          message: 'Microphone permission is blocked. Please allow microphone access in the browser, then resume the call.',
+        });
+        return;
+      }
+
+      if (errorType === 'audio-capture') {
+        liveShouldListenRef.current = false;
+        setNotice({
+          type: 'error',
+          message: 'No microphone was detected. Please check your microphone device.',
+        });
+        return;
+      }
+
+      if (errorType === 'no-speech' || errorType === 'aborted') {
+        return;
+      }
+
       if (liveActiveRef.current) {
         setNotice({
           type: 'error',
-          message: 'Live voice failed. Please check microphone permission and try again.',
+          message: 'Live voice had a temporary issue. I will keep trying to listen.',
         });
       }
     };
@@ -2825,7 +2851,7 @@ function LivePracticePage({
     : loading
       ? 'Coach is thinking'
       : muted
-        ? 'Microphone muted'
+        ? 'Microphone paused'
         : listening
           ? 'Listening now'
           : 'Connecting microphone';
@@ -2880,13 +2906,15 @@ function LivePracticePage({
             </button>
           ) : (
             <div className="live-call-actions">
-              <button
-                className={listening && !muted ? 'live-talk-button listening' : 'live-talk-button'}
-                onClick={toggleMute}
-                disabled={loading}
-              >
+              <div className={listening && !muted ? 'live-talk-status listening' : 'live-talk-status'}>
                 <Mic size={22} />
-                {muted ? 'Resume Mic' : listening ? 'Listening...' : 'Mic Connecting'}
+                <strong>{muted ? 'Mic paused' : listening ? 'Listening automatically' : 'Connecting microphone'}</strong>
+                <span>{muted ? 'Tap Resume Mic when you want to continue.' : 'Just speak after the coach finishes.'}</span>
+              </div>
+
+              <button className="ghost-button" onClick={toggleMute}>
+                <Mic size={18} />
+                {muted ? 'Resume Mic' : 'Pause Mic'}
               </button>
 
               <button className="ghost-button" onClick={endSession} disabled={loading}>
