@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, "..", "dist");
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 
 const textAi = new OpenAI({
   apiKey: decryptSecret(process.env.TEXT_API_KEY),
@@ -1000,6 +1000,65 @@ Rules:
       err,
       "Selection explanation failed",
       "Selection explanation failed. Please check the server connection and API key."
+    );
+  }
+});
+
+app.post("/api/live-transcribe", async (req, res) => {
+  try {
+    const audioBase64 = toText(req.body?.audioBase64);
+    const mimeType = (toText(req.body?.mimeType) || "audio/webm").split(";")[0];
+
+    if (!audioBase64) {
+      return res.status(400).json({
+        error: "Audio is required",
+        detail: "Please send an audio recording to transcribe.",
+      });
+    }
+
+    const response = await videoAi.models.generateContent({
+      model: process.env.VIDEO_MODEL || "gemini-2.5-flash-lite",
+      contents: [
+        {
+          inlineData: {
+            data: audioBase64,
+            mimeType,
+          },
+        },
+        {
+          text: `
+Transcribe this learner audio for an English practice call.
+
+Rules:
+1. Return ONLY raw JSON.
+2. Do not use markdown or code blocks.
+3. Keep the transcript in the language actually spoken.
+4. If the learner mixes Chinese and English, keep both.
+5. If the audio is empty or unclear, return an empty transcript.
+
+JSON format:
+{
+  "transcript": "",
+  "language": ""
+}
+`,
+        },
+      ],
+    });
+
+    const data = safeParseJson(response.text || "");
+
+    res.json({
+      transcript: toText(data.transcript),
+      language: toText(data.language),
+    });
+  } catch (err) {
+    console.error("Live transcription error:", err);
+    sendAiError(
+      res,
+      err,
+      "Live transcription failed",
+      "Live transcription failed. Please check the audio model key or try again."
     );
   }
 });

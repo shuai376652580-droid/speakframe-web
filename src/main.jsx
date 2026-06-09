@@ -642,7 +642,13 @@ function App() {
   const [voiceListening, setVoiceListening] = useState(false);
   const [notice, setNotice] = useState(null);
   const recognitionRef = useRef(null);
-  const liveRecognitionRef = useRef(null);
+  const liveRecorderRef = useRef(null);
+  const liveStreamRef = useRef(null);
+  const liveAudioContextRef = useRef(null);
+  const liveAnalyserLoopRef = useRef(null);
+  const liveRecordMaxTimerRef = useRef(null);
+  const liveRecordChunksRef = useRef([]);
+  const liveRecordCancelRef = useRef(false);
   const liveActiveRef = useRef(false);
   const liveLoadingRef = useRef(false);
   const liveMutedRef = useRef(false);
@@ -672,7 +678,8 @@ function App() {
       window.clearTimeout(liveRestartTimerRef.current);
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (liveRecognitionRef.current) liveRecognitionRef.current.stop();
+    stopLiveListening();
+    closeLiveAudioStream();
   }, []);
 
   useEffect(() => {
@@ -1267,6 +1274,48 @@ function App() {
     }
   }
 
+  function clearLiveRecordingTimers() {
+    if (liveRecordMaxTimerRef.current) {
+      window.clearTimeout(liveRecordMaxTimerRef.current);
+      liveRecordMaxTimerRef.current = null;
+    }
+    if (liveAnalyserLoopRef.current) {
+      window.cancelAnimationFrame(liveAnalyserLoopRef.current);
+      liveAnalyserLoopRef.current = null;
+    }
+  }
+
+  function closeLiveAudioContext() {
+    clearLiveRecordingTimers();
+    if (liveAudioContextRef.current) {
+      liveAudioContextRef.current.close().catch(() => {});
+      liveAudioContextRef.current = null;
+    }
+  }
+
+  function closeLiveAudioStream() {
+    closeLiveAudioContext();
+    if (liveStreamRef.current) {
+      liveStreamRef.current.getTracks().forEach((track) => track.stop());
+      liveStreamRef.current = null;
+    }
+  }
+
+  function getLiveAudioMimeType() {
+    if (!window.MediaRecorder) return '';
+    const candidates = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+    return candidates.find((type) => window.MediaRecorder.isTypeSupported(type)) || '';
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || '').split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
   function scheduleLiveListening(delay = 450) {
     clearLiveRestartTimer();
     if (
@@ -1316,6 +1365,53 @@ function App() {
       afterSpeak?.();
     };
     window.speechSynthesis.speak(utterance);
+  }
+
+  async function sendLiveAudio(blob, mimeType) {
+    if (!blob || blob.size < 1200 || liveLoadingRef.current) {
+      liveShouldListenRef.current = true;
+      scheduleLiveListening(500);
+      return;
+    }
+
+    setLiveMicHint('Understanding what you said...');
+    setLiveLoading(true);
+    liveLoadingRef.current = true;
+
+    try {
+      const audioBase64 = await blobToBase64(blob);
+      const res = await fetch(`${API_BASE}/api/live-transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audioBase64, mimeType }),
+      });
+
+      const data = await readApiJson(res, 'Live transcription failed');
+
+      if (!res.ok || data.error) {
+        throw new Error(data.detail || data.error || 'Live transcription failed');
+      }
+
+      const transcript = toText(data.transcript);
+      if (!transcript) {
+        setLiveMicHint("I didn't catch that. Try speaking again.");
+        liveShouldListenRef.current = true;
+        scheduleLiveListening(650);
+        return;
+      }
+
+      setLiveLoading(false);
+      liveLoadingRef.current = false;
+      await sendLiveTurn(transcript);
+    } catch (err) {
+      console.error('sendLiveAudio error:', err);
+      setLiveMicHint('Audio transcription failed. I will listen again.');
+      liveShouldListenRef.current = true;
+      scheduleLiveListening(900);
+    } finally {
+      setLiveLoading(false);
+      liveLoadingRef.current = false;
+    }
   }
 
   async function sendLiveTurn(transcript) {
@@ -1404,98 +1500,191 @@ function App() {
   }
 
   function stopLiveListening(options = {}) {
-    const { keepAuto = false } = options;
+    const { keepAuto = false, discard = true } = options;
     if (!keepAuto) {
       liveShouldListenRef.current = false;
     }
     clearLiveRestartTimer();
-    if (liveRecognitionRef.current) {
-      liveRecognitionRef.current.stop();
+    clearLiveRecordingTimers();
+    liveRecordCancelRef.current = discard;
+    if (liveRecorderRef.current && liveRecorderRef.current.state !== 'inactive') {
+      liveRecorderRef.current.stop();
     }
     setLiveListening(false);
   }
 
-  function startLiveListening() {
+  function startLiveSilenceDetection(recorder) {
+    closeLiveAudioContext();
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass || !liveStreamRef.current) {
+      liveRecordMaxTimerRef.current = window.setTimeout(() => {
+        if (recorder.state !== 'inactive') {
+          liveRecordCancelRef.current = false;
+          recorder.stop();
+        }
+      }, 6500);
+      return;
+    }
+
+    const audioContext = new AudioContextClass();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(liveStreamRef.current);
+    const startedAt = Date.now();
+    let heardVoice = false;
+    let lastVoiceAt = Date.now();
+
+    analyser.fftSize = 1024;
+    const data = new Uint8Array(analyser.fftSize);
+    source.connect(analyser);
+    liveAudioContextRef.current = audioContext;
+
+    const stopAndSend = () => {
+      if (recorder.state !== 'inactive') {
+        liveRecordCancelRef.current = false;
+        recorder.stop();
+      }
+    };
+
+    const stopAndRetry = () => {
+      if (recorder.state !== 'inactive') {
+        liveRecordCancelRef.current = true;
+        recorder.stop();
+      }
+    };
+
+    function tick() {
+      if (recorder.state === 'inactive') return;
+
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (const value of data) {
+        const normalized = (value - 128) / 128;
+        sum += normalized * normalized;
+      }
+
+      const volume = Math.sqrt(sum / data.length);
+      const now = Date.now();
+
+      if (volume > 0.018) {
+        heardVoice = true;
+        lastVoiceAt = now;
+      }
+
+      if (heardVoice && now - lastVoiceAt > 1200 && now - startedAt > 900) {
+        stopAndSend();
+        return;
+      }
+
+      if (now - startedAt > 9000) {
+        if (heardVoice) {
+          stopAndSend();
+        } else {
+          setLiveMicHint("I don't hear anything yet. Still listening...");
+          stopAndRetry();
+        }
+        return;
+      }
+
+      liveAnalyserLoopRef.current = window.requestAnimationFrame(tick);
+    }
+
+    liveRecordMaxTimerRef.current = window.setTimeout(() => {
+      if (recorder.state !== 'inactive') stopAndSend();
+    }, 12000);
+    tick();
+  }
+
+  async function startLiveListening() {
     if (
       !liveShouldListenRef.current ||
       !liveActiveRef.current ||
       liveMutedRef.current ||
       liveLoadingRef.current ||
       liveSpeakingRef.current ||
-      liveRecognitionRef.current
+      liveRecorderRef.current
     ) {
       return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setNotice({
         type: 'error',
-        message: 'Live voice input is not supported in this browser. Chrome or Edge should work better.',
+        message: 'Live recording is not supported in this browser. Chrome or Edge should work better.',
       });
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    try {
+      if (!liveStreamRef.current) {
+        liveStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      }
+    } catch (err) {
+      liveShouldListenRef.current = false;
+      liveMutedRef.current = true;
+      setLiveMuted(true);
+      setNotice({
+        type: 'error',
+        message: 'Microphone permission is blocked. Please allow microphone access, then resume the call.',
+      });
+      return;
+    }
 
-    recognition.onstart = () => {
+    const mimeType = getLiveAudioMimeType();
+    const recorder = new MediaRecorder(
+      liveStreamRef.current,
+      mimeType ? { mimeType } : undefined
+    );
+    liveRecorderRef.current = recorder;
+    liveRecordChunksRef.current = [];
+    liveRecordCancelRef.current = false;
+
+    recorder.ondataavailable = (event) => {
+      if (event.data?.size) liveRecordChunksRef.current.push(event.data);
+    };
+
+    recorder.onstart = () => {
       setLiveListening(true);
-      setLiveMicHint('');
+      setLiveMicHint('Listening. Pause for a moment to send your answer.');
       setNotice(null);
     };
 
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map((result) => result[0]?.transcript || '')
-        .join(' ')
-        .trim();
-
-      if (transcript) {
-        liveShouldListenRef.current = false;
-        sendLiveTurn(transcript);
-      }
-    };
-
-    recognition.onerror = (event) => {
-      const errorType = toText(event?.error);
-
-      if (errorType === 'not-allowed' || errorType === 'service-not-allowed') {
-        liveShouldListenRef.current = false;
-        liveMutedRef.current = true;
-        setLiveMuted(true);
-        setNotice({
-          type: 'error',
-          message: 'Microphone permission is blocked. Please allow microphone access in the browser, then resume the call.',
-        });
-        return;
-      }
-
-      if (errorType === 'audio-capture') {
-        liveShouldListenRef.current = false;
-        setNotice({
-          type: 'error',
-          message: 'No microphone was detected. Please check your microphone device.',
-        });
-        return;
-      }
-
-      if (errorType === 'no-speech' || errorType === 'aborted') {
-        setLiveMicHint('Still listening. If it stays here, use Retry Mic.');
-        return;
-      }
-
-      if (liveActiveRef.current) {
-        setLiveMicHint('Temporary microphone issue. I will keep trying to listen.');
-      }
-    };
-
-    recognition.onend = () => {
+    recorder.onstop = () => {
       setLiveListening(false);
-      liveRecognitionRef.current = null;
+      liveRecorderRef.current = null;
+      closeLiveAudioContext();
+      const chunks = liveRecordChunksRef.current;
+      liveRecordChunksRef.current = [];
+
+      if (liveRecordCancelRef.current) {
+        liveRecordCancelRef.current = false;
+        if (
+          liveActiveRef.current &&
+          liveShouldListenRef.current &&
+          !liveMutedRef.current &&
+          !liveLoadingRef.current &&
+          !liveSpeakingRef.current
+        ) {
+          scheduleLiveListening(550);
+        }
+        return;
+      }
+
+      liveShouldListenRef.current = false;
+      const audioBlob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+      sendLiveAudio(audioBlob, audioBlob.type);
+    };
+
+    recorder.onerror = () => {
+      setLiveListening(false);
+      liveRecorderRef.current = null;
+      closeLiveAudioContext();
+      setLiveMicHint('Recorder had a temporary issue. I will listen again.');
       if (
         liveActiveRef.current &&
         liveShouldListenRef.current &&
@@ -1503,17 +1692,17 @@ function App() {
         !liveLoadingRef.current &&
         !liveSpeakingRef.current
       ) {
-        scheduleLiveListening(550);
+        scheduleLiveListening(900);
       }
     };
 
-    liveRecognitionRef.current = recognition;
     try {
-      recognition.start();
+      recorder.start();
+      startLiveSilenceDetection(recorder);
     } catch (err) {
-      liveRecognitionRef.current = null;
+      liveRecorderRef.current = null;
       setLiveListening(false);
-      setLiveMicHint('Microphone did not start. Try Retry Mic.');
+      setLiveMicHint('Recorder did not start. Try Retry Mic.');
     }
   }
 
@@ -1525,6 +1714,13 @@ function App() {
     setLiveMuted(false);
     liveShouldListenRef.current = true;
     scheduleLiveListening(150);
+  }
+
+  function sendCurrentLiveRecording() {
+    if (liveRecorderRef.current && liveRecorderRef.current.state !== 'inactive') {
+      liveRecordCancelRef.current = false;
+      liveRecorderRef.current.stop();
+    }
   }
 
   function toggleLiveMute() {
@@ -1549,6 +1745,7 @@ function App() {
     liveSpeakingRef.current = false;
     liveActiveRef.current = false;
     setLiveActive(false);
+    closeLiveAudioStream();
 
     if (liveMessagesRef.current.length < 2) return;
 
@@ -1752,6 +1949,7 @@ function App() {
             startSession={startLiveSession}
             toggleMute={toggleLiveMute}
             retryMic={retryLiveMic}
+            sendCurrent={sendCurrentLiveRecording}
             endSession={endLiveSession}
             saveAsset={saveLiveAsset}
           />
@@ -2859,6 +3057,7 @@ function LivePracticePage({
   startSession,
   toggleMute,
   retryMic,
+  sendCurrent,
   endSession,
   saveAsset,
 }) {
@@ -2942,6 +3141,11 @@ function LivePracticePage({
               <button className="ghost-button" onClick={retryMic} disabled={loading}>
                 <Phone size={18} />
                 Retry Mic
+              </button>
+
+              <button className="ghost-button" onClick={sendCurrent} disabled={!listening || loading || muted}>
+                <Mic size={18} />
+                Send Now
               </button>
 
               <button className="ghost-button" onClick={endSession} disabled={loading}>
