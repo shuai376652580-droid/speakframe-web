@@ -630,6 +630,7 @@ function App() {
   const [liveListening, setLiveListening] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveMuted, setLiveMuted] = useState(false);
+  const [liveMicHint, setLiveMicHint] = useState('');
   const [liveSummary, setLiveSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
@@ -1389,7 +1390,9 @@ function App() {
     liveActiveRef.current = true;
     setLiveActive(true);
     setLiveMuted(false);
+    setLiveMicHint('');
     setLiveSummary(null);
+    setNotice(null);
     const opening = {
       id: uid(),
       role: 'assistant',
@@ -1441,6 +1444,7 @@ function App() {
 
     recognition.onstart = () => {
       setLiveListening(true);
+      setLiveMicHint('');
       setNotice(null);
     };
 
@@ -1480,14 +1484,12 @@ function App() {
       }
 
       if (errorType === 'no-speech' || errorType === 'aborted') {
+        setLiveMicHint('Still listening. If it stays here, use Retry Mic.');
         return;
       }
 
       if (liveActiveRef.current) {
-        setNotice({
-          type: 'error',
-          message: 'Live voice had a temporary issue. I will keep trying to listen.',
-        });
+        setLiveMicHint('Temporary microphone issue. I will keep trying to listen.');
       }
     };
 
@@ -1511,7 +1513,18 @@ function App() {
     } catch (err) {
       liveRecognitionRef.current = null;
       setLiveListening(false);
+      setLiveMicHint('Microphone did not start. Try Retry Mic.');
     }
+  }
+
+  function retryLiveMic() {
+    stopLiveListening({ keepAuto: true });
+    setLiveMicHint('Retrying microphone...');
+    setNotice(null);
+    liveMutedRef.current = false;
+    setLiveMuted(false);
+    liveShouldListenRef.current = true;
+    scheduleLiveListening(150);
   }
 
   function toggleLiveMute() {
@@ -1520,8 +1533,10 @@ function App() {
     setLiveMuted(nextMuted);
 
     if (nextMuted) {
+      setLiveMicHint('Microphone paused.');
       stopLiveListening({ keepAuto: true });
     } else {
+      setLiveMicHint('Resuming microphone...');
       liveShouldListenRef.current = true;
       scheduleLiveListening(100);
     }
@@ -1732,9 +1747,11 @@ function App() {
             listening={liveListening}
             loading={liveLoading}
             muted={liveMuted}
+            micHint={liveMicHint}
             summary={liveSummary}
             startSession={startLiveSession}
             toggleMute={toggleLiveMute}
+            retryMic={retryLiveMic}
             endSession={endLiveSession}
             saveAsset={saveLiveAsset}
           />
@@ -2837,9 +2854,11 @@ function LivePracticePage({
   listening,
   loading,
   muted,
+  micHint,
   summary,
   startSession,
   toggleMute,
+  retryMic,
   endSession,
   saveAsset,
 }) {
@@ -2909,12 +2928,20 @@ function LivePracticePage({
               <div className={listening && !muted ? 'live-talk-status listening' : 'live-talk-status'}>
                 <Mic size={22} />
                 <strong>{muted ? 'Mic paused' : listening ? 'Listening automatically' : 'Connecting microphone'}</strong>
-                <span>{muted ? 'Tap Resume Mic when you want to continue.' : 'Just speak after the coach finishes.'}</span>
+                <span>
+                  {toText(micHint) ||
+                    (muted ? 'Tap Resume Mic when you want to continue.' : 'Just speak after the coach finishes.')}
+                </span>
               </div>
 
               <button className="ghost-button" onClick={toggleMute}>
                 <Mic size={18} />
                 {muted ? 'Resume Mic' : 'Pause Mic'}
+              </button>
+
+              <button className="ghost-button" onClick={retryMic} disabled={loading}>
+                <Phone size={18} />
+                Retry Mic
               </button>
 
               <button className="ghost-button" onClick={endSession} disabled={loading}>
