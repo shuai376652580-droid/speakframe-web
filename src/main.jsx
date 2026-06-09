@@ -146,6 +146,99 @@ const LIVE_FOCUS_OPTIONS = [
   },
 ];
 
+const SCENE_LISTENING_PACKS = {
+  'part-time-service-job': [
+    {
+      question: 'Are you looking for part-time work right now?',
+      sample: "Yes, I'm looking for a part-time role, ideally in a cafe, restaurant, bar, or retail store.",
+    },
+    {
+      question: 'What kind of shifts are you available for?',
+      sample: "I'm mostly available in the evenings and on weekends, but I can be flexible if needed.",
+    },
+    {
+      question: 'Do you have any customer service experience?',
+      sample: "I don't have formal experience yet, but I'm comfortable talking to people and learning quickly.",
+    },
+    {
+      question: 'How would you handle a busy shift?',
+      sample: "I would stay calm, focus on one task at a time, and ask for help if I was unsure.",
+    },
+  ],
+  'job-search-interview': [
+    {
+      question: 'Can you tell me a little about yourself?',
+      sample: "Sure. I'm someone who enjoys learning practical skills and working with people in real situations.",
+    },
+    {
+      question: 'Why are you interested in this role?',
+      sample: "I'm interested in this role because it would help me build experience, confidence, and communication skills.",
+    },
+    {
+      question: 'What strengths would you bring to the team?',
+      sample: "I would bring a positive attitude, a willingness to learn, and the ability to stay calm under pressure.",
+    },
+    {
+      question: 'When would you be available to start?',
+      sample: "I would be available to start soon, and I can discuss the exact schedule based on what the team needs.",
+    },
+  ],
+  'daily-small-talk': [
+    {
+      question: 'How has your day been so far?',
+      sample: "It's been pretty good. Nothing too special, but I got a few things done and had a calm morning.",
+    },
+    {
+      question: 'What did you get up to over the weekend?',
+      sample: "I kept it pretty simple. I stayed home, watched something, and tried to recharge a bit.",
+    },
+    {
+      question: 'Have you tried anything new recently?',
+      sample: "Actually, yes. I tried a new place recently, and it turned out better than I expected.",
+    },
+    {
+      question: 'What are you planning to do later?',
+      sample: "I don't have anything big planned. I might just relax, make some food, and get ready for tomorrow.",
+    },
+  ],
+  'workplace-communication': [
+    {
+      question: 'Can you give me a quick update on this?',
+      sample: "Sure. I've made some progress, but there are still a couple of details I need to check.",
+    },
+    {
+      question: 'What seems to be the main issue?',
+      sample: "The main issue is that the process works, but it takes longer than expected in some cases.",
+    },
+    {
+      question: 'Could you clarify what you mean by that?',
+      sample: "Of course. What I mean is that the idea is clear, but the next step still needs to be defined.",
+    },
+    {
+      question: 'What do you suggest we do next?',
+      sample: "I think we should start with the simplest option, test it, and then adjust based on the result.",
+    },
+  ],
+  'personal-reflection': [
+    {
+      question: 'What is something you have been thinking about recently?',
+      sample: "I've been thinking about how quickly time passes and how easy it is to miss what's in front of me.",
+    },
+    {
+      question: 'What did you realize from that experience?',
+      sample: "What I realized was that small moments can teach you something if you slow down enough to notice them.",
+    },
+    {
+      question: 'How did that change the way you think?',
+      sample: "It made me think more carefully about what I focus on and what I tend to take for granted.",
+    },
+    {
+      question: 'What would you like to do differently next time?',
+      sample: "Next time, I'd like to be more present instead of always thinking about the next thing.",
+    },
+  ],
+};
+
 function getLiveScene(id) {
   return LIVE_SCENES.find((scene) => scene.id === id) || LIVE_SCENES[0];
 }
@@ -1455,6 +1548,13 @@ function App() {
         naturalVersion: toText(data.naturalVersion),
         feedback: toText(data.feedback),
         usefulChunks: toTextArray(data.usefulChunks),
+        scores: data.scores && typeof data.scores === 'object'
+          ? {
+              clarity: toText(data.scores.clarity),
+              naturalness: toText(data.scores.naturalness),
+              chunkUse: toText(data.scores.chunkUse),
+            }
+          : null,
         assets: normalizeAssetList(data.assets, {
           sourceType: 'Drill',
           functionName: 'Scenario drill expression',
@@ -3161,6 +3261,13 @@ function LivePracticePage({
                 <div key={message.id} className={`live-message ${message.role}`}>
                   <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
                   <p>{toText(message.content)}</p>
+                  {message.scores && (
+                    <div className="drill-score-row">
+                      {message.scores.clarity && <span>Clarity: {message.scores.clarity}</span>}
+                      {message.scores.naturalness && <span>Natural: {message.scores.naturalness}</span>}
+                      {message.scores.chunkUse && <span>Chunks: {message.scores.chunkUse}</span>}
+                    </div>
+                  )}
                   {message.naturalVersion && (
                     <div className="expression-rescue">
                       <strong>Natural version</strong>
@@ -3258,6 +3365,7 @@ function LivePracticePage({
 
 function ListenPage({ assets, practice, structurePlan }) {
   const [sourceMode, setSourceMode] = useState('assets');
+  const [listenScene, setListenScene] = useState('part-time-service-job');
   const [selectedIds, setSelectedIds] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -3330,8 +3438,30 @@ function ListenPage({ assets, practice, structurePlan }) {
     return [...layerItems, ...sample].filter((item) => item.text);
   }, [structurePlan]);
 
+  const sceneItems = useMemo(() => {
+    const scene = getLiveScene(listenScene);
+    const pack = SCENE_LISTENING_PACKS[listenScene] || [];
+    return pack.flatMap((item, index) => ([
+      {
+        id: `scene-${listenScene}-${index}-q`,
+        label: `Question ${index + 1}`,
+        text: toText(item.question),
+        meaning: 'Listen first, pause, answer out loud or in your head.',
+        meta: `${scene.label} - real question`,
+      },
+      {
+        id: `scene-${listenScene}-${index}-a`,
+        label: `Sample ${index + 1}`,
+        text: toText(item.sample),
+        meaning: 'Reference answer. Shadow it, then replace details with your own.',
+        meta: `${scene.label} - sample answer`,
+      },
+    ])).filter((item) => item.text);
+  }, [listenScene]);
+
   const sourceItems = {
     assets: assetItems,
+    scene: sceneItems,
     recombine: recombineItems,
     structure: structureItems,
   };
@@ -3457,6 +3587,13 @@ function ListenPage({ assets, practice, structurePlan }) {
               <span>Loop saved chunks and patterns.</span>
             </button>
             <button
+              className={sourceMode === 'scene' ? 'mode-button active' : 'mode-button'}
+              onClick={() => setSourceMode('scene')}
+            >
+              Scene Questions
+              <span>Hear real questions and sample answers.</span>
+            </button>
+            <button
               className={sourceMode === 'recombine' ? 'mode-button active' : 'mode-button'}
               onClick={() => setSourceMode('recombine')}
             >
@@ -3471,6 +3608,20 @@ function ListenPage({ assets, practice, structurePlan }) {
               <span>Hear the big-to-small layers.</span>
             </button>
           </div>
+
+          {sourceMode === 'scene' && (
+            <div className="goal-selector">
+              <label>Listening Scene</label>
+              <select value={listenScene} onChange={(e) => setListenScene(e.target.value)}>
+                {LIVE_SCENES.map((scene) => (
+                  <option key={scene.id} value={scene.id}>
+                    {scene.label}
+                  </option>
+                ))}
+              </select>
+              <p>Listen to common questions, pause, answer, then shadow the sample answer.</p>
+            </div>
+          )}
 
           <div className="listen-settings">
             <label>

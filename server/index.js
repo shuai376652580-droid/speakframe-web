@@ -1109,6 +1109,11 @@ JSON format:
   "naturalVersion": "",
   "feedback": "",
   "usefulChunks": [],
+  "scores": {
+    "clarity": "",
+    "naturalness": "",
+    "chunkUse": ""
+  },
   "isRescue": false,
   "rescue": {
     "naturalExpression": "",
@@ -1123,22 +1128,23 @@ Rules:
 2. naturalVersion rewrites the learner's answer into natural spoken English. Keep it 1-3 sentences.
 3. feedback explains briefly what improved and what expression function it serves.
 4. usefulChunks contains 2-5 reusable chunks or patterns from the natural version.
-5. If the learner uses Chinese to ask how to say something, treat it as expression rescue.
-6. For expression rescue, give the natural English sentence, a reusable pattern, then ask them to try again.
-7. Adapt to focus:
+5. scores should be short labels like "Clear", "Needs detail", "Natural", "Use one saved chunk".
+6. If the learner uses Chinese to ask how to say something, treat it as expression rescue.
+7. For expression rescue, give the natural English sentence, a reusable pattern, then ask them to try again.
+8. Adapt to focus:
    - question-understanding: ask realistic questions and keep them short.
    - natural-response: help the learner answer more naturally.
    - chunk-practice: include one useful chunk and ask the learner to reuse it.
    - shadowing: give one short line and ask the learner to repeat or adapt it.
    - rescue-in-chinese: be ready to rescue Chinese questions with natural English.
-8. Adapt to scenario:
+9. Adapt to scenario:
    - part-time-service-job: bar, restaurant, cafe, retail, service work, availability, customers, shifts.
    - job-search-interview: fit, motivation, experience, availability, strengths.
    - daily-small-talk: everyday moments, follow-up questions, natural reactions.
    - workplace-communication: updates, problems, clarification, suggestions.
    - personal-reflection: feelings, changes, decisions, lessons.
-9. assets should include 1-3 saveable expression assets extracted from the learner's weak point or natural version.
-10. Each asset must use this shape:
+10. assets should include 1-3 saveable expression assets extracted from the learner's weak point or natural version.
+11. Each asset must use this shape:
 {
   "type": "Chunk | Pattern | Native Expression | Question Pattern | Useful Sentence",
   "text": "",
@@ -1151,7 +1157,7 @@ Rules:
   "tags": [],
   "notes": ""
 }
-11. Keep explanations concise. This is a drill screen.
+12. Keep explanations concise. This is a drill screen.
 `);
 
     const data = safeParseJson(rawText);
@@ -1161,6 +1167,13 @@ Rules:
       naturalVersion: toText(data.naturalVersion),
       feedback: toText(data.feedback),
       usefulChunks: toTextArray(data.usefulChunks),
+      scores: data.scores && typeof data.scores === "object"
+        ? {
+            clarity: toText(data.scores.clarity),
+            naturalness: toText(data.scores.naturalness),
+            chunkUse: toText(data.scores.chunkUse),
+          }
+        : null,
       isRescue: Boolean(data.isRescue),
       rescue: data.rescue && typeof data.rescue === "object"
         ? {
