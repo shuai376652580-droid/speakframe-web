@@ -746,7 +746,6 @@ function App() {
   const [selectedInsightSentence, setSelectedInsightSentence] = useState('');
   const [practiceLoading, setPracticeLoading] = useState(false);
   const [structureLoading, setStructureLoading] = useState(false);
-  const [videoLoading, setVideoLoading] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -1012,65 +1011,6 @@ function App() {
         type: 'error',
         message: friendlyErrorMessage(err.message, 'Asset save failed. Please try again.'),
       });
-    }
-  }
-
-  async function parseVideoAssets(videoUrl) {
-    const safeUrl = toText(videoUrl);
-
-    if (!safeUrl || videoLoading) return false;
-
-    setNotice(null);
-    setVideoLoading(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/api/video-assets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: safeUrl }),
-      });
-
-      const data = await readApiJson(res, 'Video asset API failed');
-
-      if (!res.ok || data.error) {
-        throw new Error(data.detail || data.error || 'Video asset API failed');
-      }
-
-      const generatedAssets = normalizeAssetList(data.assets, {
-        sourceType: 'Video',
-        sourceUrl: safeUrl,
-        functionName: 'Video expression asset',
-        expressionFunction: 'Expression from video context',
-        rootPattern: 'Reusable expression from video',
-        notes: 'Captured from a video link for later review.',
-      });
-
-      if (generatedAssets.length === 0) {
-        throw new Error('No useful assets were found from this video link.');
-      }
-
-      const next = [...generatedAssets, ...(Array.isArray(assets) ? assets : [])];
-
-      const savedAssets = await persistNewAssets(next, generatedAssets);
-      setAssets(savedAssets);
-      setNotice({
-        type: 'success',
-        message: `Added ${generatedAssets.length} video assets to your library.`,
-      });
-
-      return true;
-    } catch (err) {
-      console.error('parseVideoAssets error:', err);
-      setNotice({
-        type: 'error',
-        message: friendlyErrorMessage(
-          err.message,
-          'Video parsing failed. If the platform blocks transcripts, paste a transcript in a future version.'
-        ),
-      });
-      return false;
-    } finally {
-      setVideoLoading(false);
     }
   }
 
@@ -2084,8 +2024,6 @@ function App() {
           <AssetsPage
             assets={assets}
             deleteAsset={deleteAsset}
-            parseVideoAssets={parseVideoAssets}
-            videoLoading={videoLoading}
             generateDailyAssets={generateDailyAssets}
             dailyLoading={dailyLoading}
             assetGoal={assetGoal}
@@ -2446,8 +2384,6 @@ function InsightField({ label, value }) {
 function AssetsPage({
   assets,
   deleteAsset,
-  parseVideoAssets,
-  videoLoading,
   generateDailyAssets,
   dailyLoading,
   assetGoal,
@@ -2455,7 +2391,6 @@ function AssetsPage({
 }) {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
-  const [videoUrl, setVideoUrl] = useState('');
   const [selectedAssetId, setSelectedAssetId] = useState('');
 
   const filtered = useMemo(() => {
@@ -2481,49 +2416,12 @@ function AssetsPage({
     }
   }, [filtered, selectedAssetId]);
 
-  async function handleVideoParse() {
-    const didAdd = await parseVideoAssets(videoUrl);
-
-    if (didAdd) {
-      setVideoUrl('');
-    }
-  }
-
   return (
     <section className="page">
       <PageHeader
         title="Asset Library"
-        subtitle="Save expressions from conversations and video links, then review them as reusable assets."
+        subtitle="Save expressions from conversations, listening packs, structures, and daily recommendations, then review them as reusable assets."
       />
-
-      <div className="video-parser">
-        <div>
-          <p className="eyebrow">Video to Assets</p>
-          <h3>Parse useful expressions from a video link</h3>
-          <p>
-            Paste a public video URL. SpeakFrame will look for valuable chunks, sentence patterns,
-            and reusable lines to save into your asset library.
-          </p>
-        </div>
-
-        <div className="video-form">
-          <input
-            placeholder="Paste YouTube, course, or public video link..."
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleVideoParse();
-              }
-            }}
-          />
-          <button className="save-button" onClick={handleVideoParse} disabled={videoLoading || !videoUrl.trim()}>
-            <Sparkles size={18} />
-            {videoLoading ? 'Parsing...' : 'Parse Video'}
-          </button>
-        </div>
-      </div>
 
       <div className="daily-recommendation">
         <div>
