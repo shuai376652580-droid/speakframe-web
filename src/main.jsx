@@ -3446,6 +3446,7 @@ function ListenPage({
   const [packLoading, setPackLoading] = useState(false);
   const [activePack, setActivePack] = useState(() => normalizeListeningPackForClient((listeningPacks || [])[0]));
   const [activeSentenceIndex, setActiveSentenceIndex] = useState(0);
+  const [sentenceStep, setSentenceStep] = useState(1);
   const [sentenceDrafts, setSentenceDrafts] = useState({});
   const [revealedLines, setRevealedLines] = useState({});
   const [meaningLines, setMeaningLines] = useState({});
@@ -3643,6 +3644,7 @@ function ListenPage({
   const currentDraft = activeSentence ? toText(sentenceDrafts[activeSentence.id]) : '';
   const overlap = activeSentence ? getListeningOverlap(activeSentence.original, currentDraft) : { caught: [], missed: [], score: 0 };
   const isLoopMode = ['assets', 'recombine', 'structure'].includes(sourceMode);
+  const sentenceStepLabels = ['Listen', 'Chunks', 'Function', 'Swap', 'Final'];
 
   async function generateListeningPack() {
     if (packLoading) return;
@@ -3676,6 +3678,7 @@ function ListenPage({
       const savedPack = saveListeningPack(normalized);
       setActivePack(savedPack);
       setActiveSentenceIndex(0);
+      setSentenceStep(1);
       setSentenceDrafts({});
       setRevealedLines({});
       setMeaningLines({});
@@ -3698,8 +3701,41 @@ function ListenPage({
   function choosePack(pack) {
     setActivePack(normalizeListeningPackForClient(pack));
     setActiveSentenceIndex(0);
+    setSentenceStep(1);
     setSourceMode('video');
     setReview(null);
+  }
+
+  function chooseSentence(index) {
+    setActiveSentenceIndex(index);
+    setSentenceStep(1);
+  }
+
+  function previousTrainingStep() {
+    if (sentenceStep > 1) {
+      setSentenceStep((step) => Math.max(1, step - 1));
+      return;
+    }
+
+    if (activeSentenceIndex > 0) {
+      setActiveSentenceIndex((index) => index - 1);
+      setSentenceStep(4);
+    }
+  }
+
+  function nextTrainingStep() {
+    if (sentenceStep < 4) {
+      setSentenceStep((step) => step + 1);
+      return;
+    }
+
+    if (activeSentenceIndex < safePack.sentences.length - 1) {
+      setActiveSentenceIndex((index) => index + 1);
+      setSentenceStep(1);
+      return;
+    }
+
+    setSentenceStep(5);
   }
 
   function revealLine(id) {
@@ -4037,7 +4073,7 @@ function ListenPage({
                       <button
                         key={sentence.id}
                         className={index === activeSentenceIndex ? 'listen-queue-item active' : 'listen-queue-item'}
-                        onClick={() => setActiveSentenceIndex(index)}
+                        onClick={() => chooseSentence(index)}
                       >
                         <span>{index + 1}</span>
                         <div>
@@ -4049,144 +4085,144 @@ function ListenPage({
                   </div>
 
                   <div className="sentence-study-panel">
-                    {activeSentence && (
+                    {activeSentence && sentenceStep < 5 && (
                       <>
-                        <div className="listen-now">
-                          <p className="eyebrow">Step 1 · Listen, Write, Then Reveal</p>
-                          <h2>Line {activeSentenceIndex + 1}</h2>
-                          <p className={revealedLines[activeSentence.id] && showText ? '' : 'hidden-text'}>
-                            {activeSentence.original}
-                          </p>
-                          <div className="listen-actions">
-                            <button className="save-button" onClick={() => playSentence(activeSentence, 1)}>
-                              <Play size={17} />
-                              Play Sentence
-                            </button>
-                            <button className="ghost-button" onClick={() => playSentence(activeSentence, 0.5)}>
-                              <Play size={17} />
-                              Slow
-                            </button>
-                            <button className="ghost-button" onClick={() => playSentenceChunks(activeSentence, rate)}>
-                              <Headphones size={17} />
-                              Chunk Listen
-                            </button>
-                            <button className="ghost-button" onClick={() => revealLine(activeSentence.id)}>
-                              <Eye size={17} />
-                              Reveal Transcript
-                            </button>
-                            <button className="ghost-button" onClick={() => toggleMeaning(activeSentence.id)}>
-                              中文
-                            </button>
+                        <div className="listening-test-header">
+                          <div>
+                            <p className="eyebrow">Line {activeSentenceIndex + 1} of {safePack.sentences.length}</p>
+                            <h2>{sentenceStepLabels[sentenceStep - 1]}</h2>
                           </div>
-                        </div>
-
-                        <div className="dictation-box">
-                          <label>Write the sentence you heard, or describe it in your own words</label>
-                          <textarea
-                            value={currentDraft}
-                            onChange={(e) => updateSentenceDraft(activeSentence.id, e.target.value)}
-                            placeholder="Type what you heard here..."
-                          />
-                          {revealedLines[activeSentence.id] && (
-                            <div className="listening-diagnosis">
-                              <strong>Listening match: {overlap.score}%</strong>
-                              <p>Caught: {overlap.caught.length ? overlap.caught.join(', ') : 'not enough yet'}</p>
-                              <p>Missed: {overlap.missed.length ? overlap.missed.join(', ') : 'looks solid'}</p>
-                              <p>{activeSentence.listeningProblem}</p>
-                            </div>
-                          )}
-                          {meaningLines[activeSentence.id] && (
-                            <div className="meaning-card">
-                              <strong>中文理解</strong>
-                              <p>{activeSentence.meaningZh || 'No Chinese meaning generated for this line.'}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="structure-section">
-                          <p className="eyebrow">Step 2 · Chunk Listening</p>
-                          <div className="chunk-grid">
-                            {activeSentence.chunks.map((chunk) => (
-                              <button className="chunk-card" key={chunk.text} onClick={() => speak(chunk.text, rate)}>
-                                <strong>{chunk.text}</strong>
-                                <span>{chunk.whyHard || 'Repeat this as one sound unit.'}</span>
-                              </button>
+                          <div className="test-step-track">
+                            {sentenceStepLabels.slice(0, 4).map((label, index) => (
+                              <span key={label} className={index + 1 === sentenceStep ? 'active' : index + 1 < sentenceStep ? 'done' : ''}>
+                                {index + 1}
+                              </span>
                             ))}
                           </div>
                         </div>
 
-                        <div className="structure-section">
-                          <p className="eyebrow">Step 3 · Sentence Function</p>
-                          <h3>{activeSentence.pattern || activeSentence.original}</h3>
-                          <p>{activeSentence.whyUse || activeSentence.functionName}</p>
-                          {activeSentence.slots.length > 0 && (
-                            <div className="pill-row">
-                              {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
+                        {sentenceStep === 1 && (
+                          <>
+                            <div className="listen-now">
+                              <p className="eyebrow">Step 1 · Listen, Write, Then Reveal</p>
+                              <h2>Question Mode</h2>
+                              <p className={revealedLines[activeSentence.id] && showText ? '' : 'hidden-text'}>
+                                {activeSentence.original}
+                              </p>
+                              <div className="listen-actions">
+                                <button className="save-button" onClick={() => playSentence(activeSentence, 1)}>
+                                  <Play size={17} />
+                                  Play Sentence
+                                </button>
+                                <button className="ghost-button" onClick={() => playSentence(activeSentence, 0.5)}>
+                                  <Play size={17} />
+                                  Slow
+                                </button>
+                                <button className="ghost-button" onClick={() => revealLine(activeSentence.id)}>
+                                  <Eye size={17} />
+                                  Reveal Transcript
+                                </button>
+                                <button className="ghost-button" onClick={() => toggleMeaning(activeSentence.id)}>
+                                  中文
+                                </button>
+                              </div>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="structure-section">
-                          <p className="eyebrow">Step 4 · Extension Swap Practice</p>
-                          <div className="swap-grid">
-                            {(activeSentence.replacementDrills.length ? activeSentence.replacementDrills : activeSentence.extensionExamples).slice(0, 10).map((prompt, index) => (
-                              <label className="swap-card" key={`${activeSentence.id}-${index}`}>
-                                <span>{index + 1}. {prompt}</span>
-                                <input
-                                  value={swapDrafts[`${activeSentence.id}-${index}`] || ''}
-                                  onChange={(e) => updateSwapDraft(activeSentence.id, index, e.target.value)}
-                                  placeholder="Type your replacement sentence..."
-                                />
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="structure-section">
-                          <p className="eyebrow">Worth Saving</p>
-                          <div className="suggested-save-grid">
-                            {[...activeSentence.saveSuggestions, ...safePack.recommendedAssets].slice(0, 6).map((asset, index) => {
-                              const key = `${activeSentence.id}-${toText(asset.text || asset.assetText)}-${index}`;
-                              return (
-                                <div className="live-asset-card" key={key}>
-                                  <span className="asset-type">{toText(asset.type) || 'Asset'}</span>
-                                  <h3>{toText(asset.text)}</h3>
-                                  <p>{toText(asset.functionName) || toText(asset.expressionFunction)}</p>
-                                  <button
-                                    className="ghost-button small"
-                                    onClick={() => savePackAsset(asset, activeSentence)}
-                                    disabled={savedAssetKeys.includes(`${activeSentence.id}-${toText(asset.text || asset.assetText)}`)}
-                                  >
-                                    <Save size={15} />
-                                    {savedAssetKeys.includes(`${activeSentence.id}-${toText(asset.text || asset.assetText)}`) ? 'Saved' : 'Save to Assets'}
-                                  </button>
+                            <div className="dictation-box">
+                              <label>Write the sentence you heard, or describe it in your own words</label>
+                              <textarea
+                                value={currentDraft}
+                                onChange={(e) => updateSentenceDraft(activeSentence.id, e.target.value)}
+                                placeholder="Type what you heard here..."
+                              />
+                              {revealedLines[activeSentence.id] && (
+                                <div className="listening-diagnosis">
+                                  <strong>Listening match: {overlap.score}%</strong>
+                                  <p>Caught: {overlap.caught.length ? overlap.caught.join(', ') : 'not enough yet'}</p>
+                                  <p>Missed: {overlap.missed.length ? overlap.missed.join(', ') : 'looks solid'}</p>
+                                  <p>{activeSentence.listeningProblem}</p>
                                 </div>
-                              );
-                            })}
+                              )}
+                              {meaningLines[activeSentence.id] && (
+                                <div className="meaning-card">
+                                  <strong>中文理解</strong>
+                                  <p>{activeSentence.meaningZh || 'No Chinese meaning generated for this line.'}</p>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+
+                        {sentenceStep === 2 && (
+                          <div className="structure-section test-card">
+                            <p className="eyebrow">Step 2 · Chunk Listening</p>
+                            <h3>Hear it as sound blocks</h3>
+                            <button className="save-button inline-action" onClick={() => playSentenceChunks(activeSentence, rate)}>
+                              <Headphones size={17} />
+                              Play All Chunks
+                            </button>
+                            <div className="chunk-grid">
+                              {activeSentence.chunks.map((chunk) => (
+                                <button className="chunk-card" key={chunk.text} onClick={() => speak(chunk.text, rate)}>
+                                  <strong>{chunk.text}</strong>
+                                  <span>{chunk.whyHard || 'Repeat this as one sound unit.'}</span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {sentenceStep === 3 && (
+                          <div className="structure-section test-card">
+                            <p className="eyebrow">Step 3 · Sentence Function</p>
+                            <h3>{activeSentence.pattern || activeSentence.original}</h3>
+                            <p>{activeSentence.whyUse || activeSentence.functionName}</p>
+                            {activeSentence.slots.length > 0 && (
+                              <div className="pill-row">
+                                {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {sentenceStep === 4 && (
+                          <div className="structure-section test-card">
+                            <p className="eyebrow">Step 4 · Extension Swap Practice</p>
+                            <h3>Use the same pattern in new situations</h3>
+                            <div className="swap-grid">
+                              {(activeSentence.replacementDrills.length ? activeSentence.replacementDrills : activeSentence.extensionExamples).slice(0, 10).map((prompt, index) => (
+                                <label className="swap-card" key={`${activeSentence.id}-${index}`}>
+                                  <span>{index + 1}. {prompt}</span>
+                                  <input
+                                    value={swapDrafts[`${activeSentence.id}-${index}`] || ''}
+                                    onChange={(e) => updateSwapDraft(activeSentence.id, index, e.target.value)}
+                                    placeholder="Type your replacement sentence..."
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         <div className="sentence-nav">
                           <button
                             className="ghost-button"
-                            onClick={() => setActiveSentenceIndex(Math.max(0, activeSentenceIndex - 1))}
-                            disabled={activeSentenceIndex === 0}
+                            onClick={previousTrainingStep}
+                            disabled={activeSentenceIndex === 0 && sentenceStep === 1}
                           >
                             Previous
                           </button>
                           <button
                             className="save-button"
-                            onClick={() => setActiveSentenceIndex(Math.min(safePack.sentences.length - 1, activeSentenceIndex + 1))}
-                            disabled={activeSentenceIndex >= safePack.sentences.length - 1}
+                            onClick={nextTrainingStep}
                           >
-                            Next Sentence
+                            {sentenceStep < 4 ? 'Next Step' : activeSentenceIndex < safePack.sentences.length - 1 ? 'Next Sentence' : 'Final Output'}
                           </button>
                         </div>
                       </>
                     )}
-                  </div>
-                </div>
 
+                    {sentenceStep === 5 && (
                 <div className="final-review-panel">
                   <p className="eyebrow">Step 5 · Full Video Output</p>
                   <h3>Describe what this video is mainly about</h3>
@@ -4194,6 +4230,32 @@ function ListenPage({
                   {safePack.finalTask.checklist.length > 0 && (
                     <div className="pill-row">
                       {safePack.finalTask.checklist.map((item) => <span className="pill" key={item}>{item}</span>)}
+                    </div>
+                  )}
+                  {safePack.recommendedAssets.length > 0 && (
+                    <div className="structure-section test-card">
+                      <p className="eyebrow">Worth Saving</p>
+                      <h3>Save the best reusable language from this pack</h3>
+                      <div className="suggested-save-grid">
+                        {safePack.recommendedAssets.slice(0, 6).map((asset, index) => {
+                          const key = `final-${toText(asset.text || asset.assetText)}-${index}`;
+                          return (
+                            <div className="live-asset-card" key={key}>
+                              <span className="asset-type">{toText(asset.type) || 'Asset'}</span>
+                              <h3>{toText(asset.text)}</h3>
+                              <p>{toText(asset.functionName) || toText(asset.expressionFunction)}</p>
+                              <button
+                                className="ghost-button small"
+                                onClick={() => savePackAsset(asset, null)}
+                                disabled={savedAssetKeys.includes(`pack-${toText(asset.text || asset.assetText)}`)}
+                              >
+                                <Save size={15} />
+                                {savedAssetKeys.includes(`pack-${toText(asset.text || asset.assetText)}`) ? 'Saved' : 'Save to Assets'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                   <textarea
@@ -4232,6 +4294,9 @@ function ListenPage({
                       </div>
                     </div>
                   )}
+                </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}
