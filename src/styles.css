@@ -294,8 +294,10 @@ nav { display: grid; gap: 18px; }
 .video-lab-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 480px); gap: 18px; align-items: start; border: 1px solid #ead8c5; background: #fff8ef; border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
 .video-lab-hero h2 { margin: 0; font-size: 28px; line-height: 1.2; }
 .video-lab-hero p:not(.eyebrow) { margin: 9px 0 12px; color: var(--muted); line-height: 1.5; }
-.video-embed { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 16px; background: #111; }
-.video-link-card { min-height: 190px; border: 1px dashed #d9bea3; border-radius: 16px; display: grid; place-items: center; color: var(--primary); background: #fffaf3; font-weight: 900; text-decoration: none; }
+.embedded-source { display: grid; gap: 8px; }
+.video-embed { width: 100%; aspect-ratio: 16 / 9; min-height: 260px; border: 1px solid #ead8c5; border-radius: 16px; background: #fffaf3; }
+.source-open-link { color: var(--primary); font-weight: 800; text-decoration: none; font-size: 13px; justify-self: end; }
+.source-open-link:hover { text-decoration: underline; }
 .sentence-lab-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
 .sentence-list-panel, .sentence-study-panel, .final-review-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); }
 .sentence-list-panel { max-height: calc(100vh - 240px); overflow: auto; display: grid; gap: 10px; position: sticky; top: 18px; }

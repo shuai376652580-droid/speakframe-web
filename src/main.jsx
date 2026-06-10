@@ -3638,7 +3638,8 @@ function ListenPage({
   const safePacks = Array.isArray(listeningPacks) ? listeningPacks : [];
   const safePack = normalizeListeningPackForClient(activePack);
   const activeSentence = safePack.sentences[activeSentenceIndex] || null;
-  const embedUrl = getYouTubeEmbedUrl(safePack.sourceUrl || sourceUrl);
+  const originalSourceUrl = safePack.sourceUrl || sourceUrl;
+  const embedUrl = getYouTubeEmbedUrl(originalSourceUrl) || originalSourceUrl;
   const currentDraft = activeSentence ? toText(sentenceDrafts[activeSentence.id]) : '';
   const overlap = activeSentence ? getListeningOverlap(activeSentence.original, currentDraft) : { caught: [], missed: [], score: 0 };
   const isLoopMode = ['assets', 'recombine', 'structure'].includes(sourceMode);
@@ -4012,17 +4013,20 @@ function ListenPage({
                     )}
                   </div>
                   {embedUrl ? (
-                    <iframe
-                      className="video-embed"
-                      title={safePack.sourceTitle}
-                      src={embedUrl}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  ) : safePack.sourceUrl ? (
-                    <a className="video-link-card" href={safePack.sourceUrl} target="_blank" rel="noreferrer">
-                      Open Original Source
-                    </a>
+                    <div className="embedded-source">
+                      <iframe
+                        className="video-embed"
+                        title={safePack.sourceTitle}
+                        src={embedUrl}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                        allowFullScreen
+                      />
+                      {originalSourceUrl && (
+                        <a className="source-open-link" href={originalSourceUrl} target="_blank" rel="noreferrer">
+                          Open in new tab if the page blocks embedded playback
+                        </a>
+                      )}
+                    </div>
                   ) : null}
                 </div>
 
