@@ -3446,6 +3446,7 @@ function ListenPage({
   const [packLoading, setPackLoading] = useState(false);
   const [activePack, setActivePack] = useState(() => normalizeListeningPackForClient((listeningPacks || [])[0]));
   const [activeSentenceIndex, setActiveSentenceIndex] = useState(0);
+  const [videoStudyView, setVideoStudyView] = useState('analysis');
   const [sentenceStep, setSentenceStep] = useState(1);
   const [sentenceDrafts, setSentenceDrafts] = useState({});
   const [revealedLines, setRevealedLines] = useState({});
@@ -3678,6 +3679,7 @@ function ListenPage({
       const savedPack = saveListeningPack(normalized);
       setActivePack(savedPack);
       setActiveSentenceIndex(0);
+      setVideoStudyView('analysis');
       setSentenceStep(1);
       setSentenceDrafts({});
       setRevealedLines({});
@@ -3701,6 +3703,7 @@ function ListenPage({
   function choosePack(pack) {
     setActivePack(normalizeListeningPackForClient(pack));
     setActiveSentenceIndex(0);
+    setVideoStudyView('analysis');
     setSentenceStep(1);
     setSourceMode('video');
     setReview(null);
@@ -3708,6 +3711,12 @@ function ListenPage({
 
   function chooseSentence(index) {
     setActiveSentenceIndex(index);
+    setVideoStudyView('analysis');
+    setSentenceStep(1);
+  }
+
+  function startSentenceTest() {
+    setVideoStudyView('test');
     setSentenceStep(1);
   }
 
@@ -4077,54 +4086,6 @@ function ListenPage({
                   )}
                 </div>
 
-                {activeSentence && (
-                  <div className="prestudy-panel">
-                    <div className="prestudy-header">
-                      <div>
-                        <p className="eyebrow">Pre-study Analysis</p>
-                        <h3>Learn the sentence before the listening test</h3>
-                        <p>先把这一句的功能、句型、chunk 和可替换位置看懂，再进入听写测试。</p>
-                      </div>
-                      <span>Line {activeSentenceIndex + 1}</span>
-                    </div>
-
-                    <div className="prestudy-grid">
-                      <div className="prestudy-main">
-                        <p className="eyebrow">Original sentence</p>
-                        <h3>{activeSentence.original}</h3>
-                        <p>{activeSentence.meaningZh || activeSentence.functionName}</p>
-                      </div>
-
-                      <div className="prestudy-card">
-                        <p className="eyebrow">Function</p>
-                        <strong>{activeSentence.functionName || 'Daily spoken English'}</strong>
-                        <p>{activeSentence.whyUse || 'Notice what this line is doing in the conversation.'}</p>
-                      </div>
-
-                      <div className="prestudy-card">
-                        <p className="eyebrow">Pattern</p>
-                        <strong>{activeSentence.pattern || activeSentence.original}</strong>
-                        {activeSentence.slots.length > 0 && (
-                          <div className="pill-row">
-                            {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="prestudy-card">
-                        <p className="eyebrow">Sound chunks</p>
-                        <div className="pill-row">
-                          {activeSentence.chunks.slice(0, 5).map((chunk) => (
-                            <button className="pill button-pill" key={chunk.text} onClick={() => speak(chunk.text, rate)}>
-                              {chunk.text}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 <div className="sentence-lab-layout">
                   <div className="sentence-list-panel">
                     <div className="select-panel-header">
@@ -4149,7 +4110,82 @@ function ListenPage({
                   </div>
 
                   <div className="sentence-study-panel">
-                    {activeSentence && sentenceStep < 5 && (
+                    {activeSentence && (
+                      <div className="video-study-inner-tabs">
+                        <button
+                          className={videoStudyView === 'analysis' ? 'filter-chip active' : 'filter-chip'}
+                          onClick={() => setVideoStudyView('analysis')}
+                        >
+                          Study / Analysis
+                        </button>
+                        <button
+                          className={videoStudyView === 'test' ? 'filter-chip active' : 'filter-chip'}
+                          onClick={startSentenceTest}
+                        >
+                          Listening Test
+                        </button>
+                      </div>
+                    )}
+
+                    {activeSentence && videoStudyView === 'analysis' && (
+                      <div className="prestudy-panel embedded">
+                        <div className="prestudy-header">
+                          <div>
+                            <p className="eyebrow">Pre-study Analysis</p>
+                            <h3>Learn the sentence before the listening test</h3>
+                            <p>先把这一句的功能、句型、chunk 和可替换位置看懂，再进入听写测试。</p>
+                          </div>
+                          <span>Line {activeSentenceIndex + 1}</span>
+                        </div>
+
+                        <div className="prestudy-grid">
+                          <div className="prestudy-main">
+                            <p className="eyebrow">Original sentence</p>
+                            <h3>{activeSentence.original}</h3>
+                            <p>{activeSentence.meaningZh || activeSentence.functionName}</p>
+                          </div>
+
+                          <div className="prestudy-card">
+                            <p className="eyebrow">Function</p>
+                            <strong>{activeSentence.functionName || 'Daily spoken English'}</strong>
+                            <p>{activeSentence.whyUse || 'Notice what this line is doing in the conversation.'}</p>
+                          </div>
+
+                          <div className="prestudy-card">
+                            <p className="eyebrow">Pattern</p>
+                            <strong>{activeSentence.pattern || activeSentence.original}</strong>
+                            {activeSentence.slots.length > 0 && (
+                              <div className="pill-row">
+                                {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="prestudy-card">
+                            <p className="eyebrow">Sound chunks</p>
+                            <div className="pill-row">
+                              {activeSentence.chunks.slice(0, 5).map((chunk) => (
+                                <button className="pill button-pill" key={chunk.text} onClick={() => speak(chunk.text, rate)}>
+                                  {chunk.text}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="sentence-nav">
+                          <button className="ghost-button" onClick={() => playSentence(activeSentence, 0.5)}>
+                            <Play size={17} />
+                            Slow Preview
+                          </button>
+                          <button className="save-button" onClick={startSentenceTest}>
+                            Start Listening Test
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeSentence && videoStudyView === 'test' && sentenceStep < 5 && (
                       <>
                         <div className="listening-test-header">
                           <div>
@@ -4273,7 +4309,7 @@ function ListenPage({
                       </>
                     )}
 
-                    {sentenceStep === 5 && (
+                    {videoStudyView === 'test' && sentenceStep === 5 && (
                 <div className="final-review-panel">
                   <p className="eyebrow">Step 5 · Full Video Output</p>
                   <h3>Describe what this video is mainly about</h3>
