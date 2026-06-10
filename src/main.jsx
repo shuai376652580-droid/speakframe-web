@@ -4000,17 +4000,12 @@ function ListenPage({
             ) : (
               <>
                 <div className="video-lab-hero">
-                  <div>
+                  <div className="video-lab-title-row">
+                    <div>
                     <p className="eyebrow">Original Video First</p>
                     <h2>{safePack.sourceTitle}</h2>
-                    <p>{safePack.sourceSummary || safePack.listeningGoal}</p>
-                    {safePack.beforeListening.length > 0 && (
-                      <div className="pill-row">
-                        {safePack.beforeListening.map((item) => (
-                          <span className="pill role" key={item}>{item}</span>
-                        ))}
-                      </div>
-                    )}
+                    </div>
+                    <span>{safePack.sentences.length} sentence units</span>
                   </div>
                   {embedUrl ? (
                     <div className="embedded-source">
