@@ -71,6 +71,8 @@ nav { display: grid; gap: 18px; }
 .mode-button { border: 1px solid var(--line); background: var(--panel); border-radius: 16px; padding: 13px 15px; color: var(--text); text-align: left; cursor: pointer; font-weight: 800; box-shadow: 0 10px 24px rgba(21, 32, 56, .06); }
 .mode-button span { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1.35; }
 .mode-button.active { border-color: #d9986f; background: var(--primary-soft); color: #9f4f2e; }
+.listen-subtabs { margin-bottom: 16px; }
+.listen-subtabs .mode-button { min-height: 70px; }
 .chat-window { height: calc(100vh - 230px); min-height: 430px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 24px; box-shadow: var(--shadow); position: relative; }
 .message-row { display: flex; margin-bottom: 16px; }
 .message-row.user { justify-content: flex-end; }

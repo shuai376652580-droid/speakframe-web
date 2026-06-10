@@ -3798,99 +3798,119 @@ function ListenPage({
         subtitle="Use one real video or transcript: listen without subtitles, write what you hear, reveal, diagnose, drill chunks, extend patterns, then summarize and save the best assets."
       />
 
+      <div className="mode-switch listen-subtabs">
+        <button
+          className={!isLoopMode ? 'mode-button active' : 'mode-button'}
+          onClick={() => setSourceMode('video')}
+        >
+          Video Study
+          <span>Import a video or transcript and study it sentence by sentence.</span>
+        </button>
+        <button
+          className={isLoopMode ? 'mode-button active' : 'mode-button'}
+          onClick={() => setSourceMode('assets')}
+        >
+          Asset Playback
+          <span>Loop saved assets, recombination tasks, or structure frames.</span>
+        </button>
+      </div>
+
       <div className="listen-layout">
         <aside className="listen-control">
-          <div className="video-lab-builder primary-builder">
-            <div>
-              <p className="eyebrow">1 · Import Listening Source</p>
-              <h3>Video / Transcript to Daily Feed</h3>
-              <p>Paste a real source, generate a pack, then study it sentence by sentence.</p>
-            </div>
-            <label>Video / Blog Link</label>
-            <input
-              value={sourceUrl}
-              onChange={(e) => setSourceUrl(e.target.value)}
-              placeholder="Paste YouTube, blog, course, or public link..."
-            />
-            <label>Transcript / Notes</label>
-            <textarea
-              value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
-              placeholder="Paste transcript if you have it. This makes the pack much more accurate."
-            />
-            <button className="save-button" onClick={generateListeningPack} disabled={packLoading}>
-              <Sparkles size={17} />
-              {packLoading ? 'Building Pack...' : 'Generate Listening Pack'}
-            </button>
-          </div>
-
-          <div className="daily-feed-list">
-            <div className="select-panel-header">
-              <div>
-                <p className="eyebrow">2 · Daily Feed</p>
-                <h3>Saved Packs</h3>
-                <p>{safePacks.length} pack(s)</p>
+          {!isLoopMode && (
+            <>
+              <div className="video-lab-builder primary-builder">
+                <div>
+                  <p className="eyebrow">1 · Import Listening Source</p>
+                  <h3>Video / Transcript to Daily Feed</h3>
+                  <p>Paste a real source, generate a pack, then study it sentence by sentence.</p>
+                </div>
+                <label>Video / Blog Link</label>
+                <input
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
+                  placeholder="Paste YouTube, blog, course, or public link..."
+                />
+                <label>Transcript / Notes</label>
+                <textarea
+                  value={sourceText}
+                  onChange={(e) => setSourceText(e.target.value)}
+                  placeholder="Paste transcript if you have it. This makes the pack much more accurate."
+                />
+                <button className="save-button" onClick={generateListeningPack} disabled={packLoading}>
+                  <Sparkles size={17} />
+                  {packLoading ? 'Building Pack...' : 'Generate Listening Pack'}
+                </button>
               </div>
-            </div>
-            {safePacks.length === 0 ? (
-              <p className="muted-text">No listening packs yet. Generate one above.</p>
-            ) : (
-              safePacks.map((pack) => (
-                <div className="feed-pack-row" key={pack.id}>
-                  <button
-                    className={pack.id === safePack.id && !isLoopMode ? 'select-asset selected' : 'select-asset'}
-                    onClick={() => choosePack(pack)}
-                  >
-                    <div>
-                      <strong>{toText(pack.sourceTitle)}</strong>
-                      <span>{toText(pack.sourceSummary) || `${pack.sentences?.length || 0} sentences`}</span>
+
+              <div className="daily-feed-list">
+                <div className="select-panel-header">
+                  <div>
+                    <p className="eyebrow">2 · Daily Feed</p>
+                    <h3>Saved Packs</h3>
+                    <p>{safePacks.length} pack(s)</p>
+                  </div>
+                </div>
+                {safePacks.length === 0 ? (
+                  <p className="muted-text">No listening packs yet. Generate one above.</p>
+                ) : (
+                  safePacks.map((pack) => (
+                    <div className="feed-pack-row" key={pack.id}>
+                      <button
+                        className={pack.id === safePack.id ? 'select-asset selected' : 'select-asset'}
+                        onClick={() => choosePack(pack)}
+                      >
+                        <div>
+                          <strong>{toText(pack.sourceTitle)}</strong>
+                          <span>{toText(pack.sourceSummary) || `${pack.sentences?.length || 0} sentences`}</span>
+                        </div>
+                        <ChevronRight size={17} />
+                      </button>
+                      <button className="icon-button danger" onClick={() => deleteListeningPack(pack.id)} aria-label="Delete pack">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    <ChevronRight size={17} />
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
+          {isLoopMode && (
+            <>
+              <div className="listen-loop-panel">
+                <div className="select-panel-header">
+              <div>
+                    <p className="eyebrow">Playback Source</p>
+                    <h3>Practice Saved Output</h3>
+                  </div>
+                </div>
+                <div className="mode-switch compact">
+                  <button
+                    className={sourceMode === 'assets' ? 'mode-button active' : 'mode-button'}
+                    onClick={() => setSourceMode('assets')}
+                  >
+                    Assets
+                    <span>Loop saved chunks and patterns.</span>
                   </button>
-                  <button className="icon-button danger" onClick={() => deleteListeningPack(pack.id)} aria-label="Delete pack">
-                    <Trash2 size={16} />
+                  <button
+                    className={sourceMode === 'recombine' ? 'mode-button active' : 'mode-button'}
+                    onClick={() => setSourceMode('recombine')}
+                  >
+                    Recombine
+                    <span>Listen to question and sample answer.</span>
+                  </button>
+                  <button
+                    className={sourceMode === 'structure' ? 'mode-button active' : 'mode-button'}
+                    onClick={() => setSourceMode('structure')}
+                  >
+                    Structure
+                    <span>Hear the big-to-small layers.</span>
                   </button>
                 </div>
-              ))
-            )}
-          </div>
-
-          <div className="listen-loop-panel">
-            <div className="select-panel-header">
-              <div>
-                <p className="eyebrow">3 · Review Loops</p>
-                <h3>Practice Saved Output</h3>
               </div>
-              <button className="ghost-button small" onClick={() => setSourceMode('video')}>
-                Current Pack
-              </button>
-            </div>
-            <div className="mode-switch compact">
-            <button
-              className={sourceMode === 'assets' ? 'mode-button active' : 'mode-button'}
-              onClick={() => setSourceMode('assets')}
-            >
-              Assets
-              <span>Loop saved chunks and patterns.</span>
-            </button>
-            <button
-              className={sourceMode === 'recombine' ? 'mode-button active' : 'mode-button'}
-              onClick={() => setSourceMode('recombine')}
-            >
-              Recombine
-              <span>Listen to question and sample answer.</span>
-            </button>
-            <button
-              className={sourceMode === 'structure' ? 'mode-button active' : 'mode-button'}
-              onClick={() => setSourceMode('structure')}
-            >
-              Structure
-              <span>Hear the big-to-small layers.</span>
-            </button>
-            </div>
-          </div>
 
-          <div className="listen-settings">
+              <div className="listen-settings">
             <label>
               Speed
               <select
@@ -3924,10 +3944,10 @@ function ListenPage({
             <button className="ghost-button small" onClick={() => setIncludeMeaning((value) => !value)}>
               {includeMeaning ? 'Meaning On' : 'Meaning Off'}
             </button>
-          </div>
+              </div>
 
-          {sourceMode === 'assets' && (
-            <div className="listen-source-list">
+              {sourceMode === 'assets' && (
+                <div className="listen-source-list">
               <div className="select-panel-header">
                 <div>
                   <h3>Select assets</h3>
@@ -3955,7 +3975,9 @@ function ListenPage({
                   </button>
                 ))
               )}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </aside>
 
