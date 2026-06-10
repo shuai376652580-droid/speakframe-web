@@ -119,6 +119,65 @@ function isHttpUrl(value) {
   }
 }
 
+function htmlToReadableText(html) {
+  return toText(html)
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<\/(p|div|li|h1|h2|h3|h4|section|article|br)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractUsefulEnglishText(text) {
+  const cleaned = toText(text);
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((line) => line.trim())
+    .filter((line) => /[a-zA-Z]{3,}/.test(line))
+    .filter((line) => line.length >= 12 && line.length <= 260);
+
+  return [...new Set(sentences)].join("\n").slice(0, 12000);
+}
+
+async function fetchPublicPageText(url) {
+  if (!url || !isHttpUrl(url)) return "";
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.5",
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return "";
+
+    const contentType = response.headers.get("content-type") || "";
+    const raw = await response.text();
+    const text = contentType.includes("html") ? htmlToReadableText(raw) : raw;
+
+    return extractUsefulEnglishText(text);
+  } catch (err) {
+    console.warn("fetchPublicPageText failed:", toText(err?.message || err));
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function normalizeGeneratedAssets(value, sourceUrl) {
   const list = Array.isArray(value) ? value : [];
 
@@ -524,6 +583,12 @@ app.post("/api/listening-pack", async (req, res) => {
       });
     }
 
+    const fetchedText = sourceText ? "" : await fetchPublicPageText(sourceUrl);
+    const availableText = sourceText || fetchedText;
+    const sourceHint = availableText
+      ? availableText
+      : "No pasted transcript or readable page text was found. If URL context is available, inspect public captions, transcript, page text, description, or visible text.";
+
     const prompt = `
 You are SpeakFrame's Video Intensive Listening Lab builder.
 
@@ -534,7 +599,7 @@ Source URL:
 ${sourceUrl || "No URL provided"}
 
 Transcript or pasted text:
-${sourceText || "No pasted transcript. If URL context is available, inspect public captions, transcript, page text, description, or visible text."}
+${sourceHint}
 
 Return ONLY raw JSON.
 Do not use markdown.
@@ -609,9 +674,13 @@ Rules:
 15. Asset recommendedType must be one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
 `;
 
-    const rawText = sourceUrl
-      ? await generateVideoContent(prompt, { tools: [{ urlContext: {} }] })
-      : await generateTextContent(prompt);
+    let rawText = "";
+
+    if (availableText.length >= 250 || !sourceUrl) {
+      rawText = await generateTextContent(prompt);
+    } else {
+      rawText = await generateVideoContent(prompt, { tools: [{ urlContext: {} }] });
+    }
 
     const data = safeParseJson(rawText);
     const pack = normalizeListeningPack(data, sourceUrl);
