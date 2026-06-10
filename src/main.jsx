@@ -709,6 +709,14 @@ function friendlyErrorMessage(value, fallback) {
     return 'Gemini quota has been used up for now. Please wait for the quota reset, upgrade billing, or switch API key.';
   }
 
+  if (
+    lower.includes('transcript text is required') ||
+    lower.includes('paste the transcript') ||
+    lower.includes('could not read transcript text')
+  ) {
+    return 'I could not read the transcript from this link. Paste the transcript into Transcript / Notes, then generate the listening pack again.';
+  }
+
   if (message.trim().startsWith('{') || message.length > 220) {
     return fallback;
   }

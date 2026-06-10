@@ -674,13 +674,15 @@ Rules:
 15. Asset recommendedType must be one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
 `;
 
-    let rawText = "";
-
-    if (availableText.length >= 250 || !sourceUrl) {
-      rawText = await generateTextContent(prompt);
-    } else {
-      rawText = await generateVideoContent(prompt, { tools: [{ urlContext: {} }] });
+    if (sourceUrl && !availableText) {
+      return res.status(422).json({
+        error: "Transcript text is required",
+        detail:
+          "I could not read transcript text from this link. Please paste the transcript into Transcript / Notes, then generate the listening pack again.",
+      });
     }
+
+    const rawText = await generateTextContent(prompt);
 
     const data = safeParseJson(rawText);
     const pack = normalizeListeningPack(data, sourceUrl);
