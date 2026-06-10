@@ -3644,7 +3644,7 @@ function ListenPage({
   const currentDraft = activeSentence ? toText(sentenceDrafts[activeSentence.id]) : '';
   const overlap = activeSentence ? getListeningOverlap(activeSentence.original, currentDraft) : { caught: [], missed: [], score: 0 };
   const isLoopMode = ['assets', 'recombine', 'structure'].includes(sourceMode);
-  const sentenceStepLabels = ['Listen', 'Chunks', 'Function', 'Swap', 'Final'];
+  const sentenceStepLabels = ['Listen', 'Chunks', 'Swap', 'Final'];
 
   async function generateListeningPack() {
     if (packLoading) return;
@@ -3719,12 +3719,12 @@ function ListenPage({
 
     if (activeSentenceIndex > 0) {
       setActiveSentenceIndex((index) => index - 1);
-      setSentenceStep(4);
+      setSentenceStep(3);
     }
   }
 
   function nextTrainingStep() {
-    if (sentenceStep < 4) {
+    if (sentenceStep < 3) {
       setSentenceStep((step) => step + 1);
       return;
     }
@@ -4059,7 +4059,71 @@ function ListenPage({
                       )}
                     </div>
                   ) : null}
+                  {activeSentence && (
+                    <div className="video-control-strip">
+                      <button className="ghost-button small" onClick={() => playSentence(activeSentence, 1)}>
+                        <Play size={15} />
+                        Play current line
+                      </button>
+                      <button className="ghost-button small" onClick={() => playSentence(activeSentence, 0.5)}>
+                        <Play size={15} />
+                        Slow line
+                      </button>
+                      <button className="ghost-button small" onClick={() => playSentenceChunks(activeSentence, rate)}>
+                        <Headphones size={15} />
+                        Chunk audio
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {activeSentence && (
+                  <div className="prestudy-panel">
+                    <div className="prestudy-header">
+                      <div>
+                        <p className="eyebrow">Pre-study Analysis</p>
+                        <h3>Learn the sentence before the listening test</h3>
+                        <p>先把这一句的功能、句型、chunk 和可替换位置看懂，再进入听写测试。</p>
+                      </div>
+                      <span>Line {activeSentenceIndex + 1}</span>
+                    </div>
+
+                    <div className="prestudy-grid">
+                      <div className="prestudy-main">
+                        <p className="eyebrow">Original sentence</p>
+                        <h3>{activeSentence.original}</h3>
+                        <p>{activeSentence.meaningZh || activeSentence.functionName}</p>
+                      </div>
+
+                      <div className="prestudy-card">
+                        <p className="eyebrow">Function</p>
+                        <strong>{activeSentence.functionName || 'Daily spoken English'}</strong>
+                        <p>{activeSentence.whyUse || 'Notice what this line is doing in the conversation.'}</p>
+                      </div>
+
+                      <div className="prestudy-card">
+                        <p className="eyebrow">Pattern</p>
+                        <strong>{activeSentence.pattern || activeSentence.original}</strong>
+                        {activeSentence.slots.length > 0 && (
+                          <div className="pill-row">
+                            {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="prestudy-card">
+                        <p className="eyebrow">Sound chunks</p>
+                        <div className="pill-row">
+                          {activeSentence.chunks.slice(0, 5).map((chunk) => (
+                            <button className="pill button-pill" key={chunk.text} onClick={() => speak(chunk.text, rate)}>
+                              {chunk.text}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="sentence-lab-layout">
                   <div className="sentence-list-panel">
@@ -4093,7 +4157,7 @@ function ListenPage({
                             <h2>{sentenceStepLabels[sentenceStep - 1]}</h2>
                           </div>
                           <div className="test-step-track">
-                            {sentenceStepLabels.slice(0, 4).map((label, index) => (
+                            {sentenceStepLabels.slice(0, 3).map((label, index) => (
                               <span key={label} className={index + 1 === sentenceStep ? 'active' : index + 1 < sentenceStep ? 'done' : ''}>
                                 {index + 1}
                               </span>
@@ -4174,20 +4238,7 @@ function ListenPage({
 
                         {sentenceStep === 3 && (
                           <div className="structure-section test-card">
-                            <p className="eyebrow">Step 3 · Sentence Function</p>
-                            <h3>{activeSentence.pattern || activeSentence.original}</h3>
-                            <p>{activeSentence.whyUse || activeSentence.functionName}</p>
-                            {activeSentence.slots.length > 0 && (
-                              <div className="pill-row">
-                                {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {sentenceStep === 4 && (
-                          <div className="structure-section test-card">
-                            <p className="eyebrow">Step 4 · Extension Swap Practice</p>
+                            <p className="eyebrow">Step 3 · Extension Swap Practice</p>
                             <h3>Use the same pattern in new situations</h3>
                             <div className="swap-grid">
                               {(activeSentence.replacementDrills.length ? activeSentence.replacementDrills : activeSentence.extensionExamples).slice(0, 10).map((prompt, index) => (
@@ -4216,7 +4267,7 @@ function ListenPage({
                             className="save-button"
                             onClick={nextTrainingStep}
                           >
-                            {sentenceStep < 4 ? 'Next Step' : activeSentenceIndex < safePack.sentences.length - 1 ? 'Next Sentence' : 'Final Output'}
+                            {sentenceStep < 3 ? 'Next Step' : activeSentenceIndex < safePack.sentences.length - 1 ? 'Next Sentence' : 'Final Output'}
                           </button>
                         </div>
                       </>

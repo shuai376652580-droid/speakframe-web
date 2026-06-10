@@ -299,6 +299,18 @@ nav { display: grid; gap: 18px; }
 .video-embed { width: 100%; aspect-ratio: 16 / 9; min-height: 420px; border: 1px solid #ead8c5; border-radius: 18px; background: #fffaf3; }
 .source-open-link { color: var(--primary); font-weight: 800; text-decoration: none; font-size: 13px; justify-self: end; }
 .source-open-link:hover { text-decoration: underline; }
+.video-control-strip { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+.prestudy-panel { display: grid; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
+.prestudy-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.prestudy-header h3 { margin: 0; font-size: 22px; }
+.prestudy-header p:not(.eyebrow) { margin: 6px 0 0; color: var(--muted); line-height: 1.5; }
+.prestudy-header span { border: 1px solid #ead8c5; background: #fff8ef; border-radius: 999px; padding: 8px 12px; color: var(--primary); font-weight: 900; white-space: nowrap; }
+.prestudy-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .8fr); gap: 12px; }
+.prestudy-main, .prestudy-card { border: 1px solid #ead8c5; background: #fff8ef; border-radius: 16px; padding: 14px; }
+.prestudy-main { grid-row: span 2; }
+.prestudy-main h3, .prestudy-card strong { display: block; margin: 0 0 8px; font-size: 20px; line-height: 1.35; }
+.prestudy-main p:not(.eyebrow), .prestudy-card p:not(.eyebrow) { margin: 0; color: #4f4036; line-height: 1.55; }
+.button-pill { border: 0; cursor: pointer; font: inherit; }
 .sentence-lab-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
 .sentence-list-panel, .sentence-study-panel, .final-review-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
 .sentence-list-panel { max-height: min(720px, calc(100vh - 180px)); overflow: auto; display: grid; gap: 10px; position: sticky; top: 18px; align-content: start; scrollbar-gutter: stable; }
@@ -368,6 +380,9 @@ nav { display: grid; gap: 18px; }
   .video-lab-title-row { align-items: flex-start; flex-direction: column; }
   .video-lab-title-row h2 { font-size: 22px; }
   .video-embed { min-height: 220px; }
+  .prestudy-header { flex-direction: column; }
+  .prestudy-grid { grid-template-columns: 1fr; }
+  .prestudy-main { grid-row: auto; }
   .sentence-lab-layout { grid-template-columns: 1fr; }
   .sentence-list-panel { position: static; max-height: 420px; }
   .select-panel { height: auto; max-height: 520px; min-height: 0; }
