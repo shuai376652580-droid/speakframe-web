@@ -282,6 +282,42 @@ nav { display: grid; gap: 18px; }
 .listen-queue-item p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
 .listen-queue-item.active { border-color: #d9986f; background: var(--primary-soft); }
 .listen-queue-item.active > span { background: var(--primary); color: white; }
+.video-lab-builder { display: grid; gap: 10px; border: 1px solid var(--line); background: #fffaf3; border-radius: 18px; padding: 14px; }
+.video-lab-builder label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 900; }
+.video-lab-builder input, .video-lab-builder textarea { width: 100%; border: 1px solid var(--line); border-radius: 13px; padding: 12px; background: white; outline: 0; }
+.video-lab-builder textarea { min-height: 130px; resize: vertical; }
+.daily-feed-list { display: grid; gap: 10px; border: 1px solid var(--line); background: #fffaf3; border-radius: 18px; padding: 14px; }
+.feed-pack-row { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 8px; align-items: center; }
+.video-lab { display: grid; gap: 18px; }
+.video-lab-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 480px); gap: 18px; align-items: start; border: 1px solid #ead8c5; background: #fff8ef; border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
+.video-lab-hero h2 { margin: 0; font-size: 28px; line-height: 1.2; }
+.video-lab-hero p:not(.eyebrow) { margin: 9px 0 12px; color: var(--muted); line-height: 1.5; }
+.video-embed { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 16px; background: #111; }
+.video-link-card { min-height: 190px; border: 1px dashed #d9bea3; border-radius: 16px; display: grid; place-items: center; color: var(--primary); background: #fffaf3; font-weight: 900; text-decoration: none; }
+.sentence-lab-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+.sentence-list-panel, .sentence-study-panel, .final-review-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); }
+.sentence-list-panel { max-height: calc(100vh - 240px); overflow: auto; display: grid; gap: 10px; position: sticky; top: 18px; }
+.sentence-study-panel { display: grid; gap: 14px; }
+.dictation-box { border: 1px solid var(--line); background: #fffaf3; border-radius: 18px; padding: 14px; display: grid; gap: 10px; }
+.dictation-box label { color: #4f4036; font-weight: 900; }
+.dictation-box textarea, .final-review-panel textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; outline: 0; resize: vertical; background: white; }
+.listening-diagnosis, .meaning-card, .review-result { border: 1px solid #ead8c5; background: #fff8ef; border-radius: 15px; padding: 12px; }
+.listening-diagnosis strong, .meaning-card strong, .review-result strong { display: block; margin-bottom: 6px; }
+.listening-diagnosis p, .meaning-card p, .review-result p { margin: 5px 0; color: #4f4036; line-height: 1.5; }
+.chunk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.chunk-card { border: 1px solid var(--line); background: #fff8ef; border-radius: 14px; padding: 12px; text-align: left; cursor: pointer; }
+.chunk-card strong { display: block; margin-bottom: 5px; color: var(--text); }
+.chunk-card span { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.swap-grid { display: grid; gap: 10px; }
+.swap-card { border: 1px solid var(--line); background: #fff8ef; border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+.swap-card span { color: #4f4036; font-weight: 800; line-height: 1.35; }
+.swap-card input { border: 1px solid var(--line); border-radius: 12px; padding: 10px; outline: 0; }
+.suggested-save-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.sentence-nav { display: flex; justify-content: space-between; gap: 10px; }
+.final-review-panel { display: grid; gap: 12px; }
+.final-review-panel h3, .review-result h4 { margin: 0; }
+.final-review-panel p { margin: 0; color: var(--muted); line-height: 1.5; }
+.review-result ul { margin: 8px 0 0; padding-left: 20px; color: #4f4036; line-height: 1.6; }
 .practice-actions { display: flex; justify-content: space-between; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 18px; }
 .practice-actions h3 { margin: 0; font-size: 22px; }
 .practice-actions p:not(.eyebrow) { margin: 6px 0 0; color: var(--muted); }

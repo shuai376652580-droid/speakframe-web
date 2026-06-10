@@ -313,6 +313,21 @@ function saveAssets(assets) {
   localStorage.setItem('speakframe_assets', JSON.stringify(Array.isArray(assets) ? assets : []));
 }
 
+function loadListeningPacks() {
+  try {
+    const data = localStorage.getItem('speakframe_listening_packs');
+    const parsed = data ? JSON.parse(data) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('loadListeningPacks error:', err);
+    return [];
+  }
+}
+
+function saveListeningPacks(packs) {
+  localStorage.setItem('speakframe_listening_packs', JSON.stringify(Array.isArray(packs) ? packs : []));
+}
+
 async function readApiJson(res, fallbackMessage = 'API request failed') {
   const contentType = res.headers.get('content-type') || '';
   const rawText = await res.text();
@@ -712,6 +727,7 @@ function App() {
   const [assetGoal, setAssetGoal] = useState(ASSET_GOALS[0].id);
   const [practiceGoal, setPracticeGoal] = useState(PRACTICE_GOALS[0].id);
   const [practice, setPractice] = useState(null);
+  const [listeningPacks, setListeningPacks] = useState(loadListeningPacks);
   const [structureTopic, setStructureTopic] = useState('');
   const [structurePlan, setStructurePlan] = useState(null);
   const [structureDraft, setStructureDraft] = useState('');
@@ -1935,6 +1951,53 @@ function App() {
     }
   }
 
+  async function saveListeningAsset(asset, defaults = {}) {
+    const normalized = normalizeAsset(asset, {
+      sourceType: 'Listening',
+      functionName: 'Listening asset',
+      notes: 'Saved from Video Intensive Listening Lab.',
+      ...defaults,
+    });
+    const next = [normalized, ...(Array.isArray(assets) ? assets : [])];
+
+    try {
+      const savedAssets = await persistNewAssets(next, [normalized]);
+      setAssets(savedAssets);
+      setNotice({ type: 'success', message: 'Saved listening asset to Assets.' });
+      return normalized;
+    } catch (err) {
+      console.error('saveListeningAsset error:', err);
+      setNotice({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Listening asset save failed. Please try again.'),
+      });
+      throw err;
+    }
+  }
+
+  function saveListeningPack(pack) {
+    const normalizedPack = {
+      ...pack,
+      id: toText(pack?.id) || uid(),
+      savedAt: toText(pack?.savedAt) || new Date().toISOString(),
+    };
+    const nextPacks = [
+      normalizedPack,
+      ...listeningPacks.filter((item) => item.id !== normalizedPack.id),
+    ].slice(0, 20);
+
+    setListeningPacks(nextPacks);
+    saveListeningPacks(nextPacks);
+    setNotice({ type: 'success', message: 'Saved this listening pack to Daily Feed.' });
+    return normalizedPack;
+  }
+
+  function deleteListeningPack(id) {
+    const nextPacks = listeningPacks.filter((item) => item.id !== id);
+    setListeningPacks(nextPacks);
+    saveListeningPacks(nextPacks);
+  }
+
   async function generatePractice() {
     const selected = (Array.isArray(assets) ? assets : []).filter((a) =>
       selectedAssetIds.includes(a.id)
@@ -2052,6 +2115,11 @@ function App() {
             assets={assets}
             practice={practice}
             structurePlan={structurePlan}
+            listeningPacks={listeningPacks}
+            saveListeningPack={saveListeningPack}
+            deleteListeningPack={deleteListeningPack}
+            saveListeningAsset={saveListeningAsset}
+            setNotice={setNotice}
           />
         )}
 
@@ -3363,9 +3431,123 @@ function LivePracticePage({
   );
 }
 
-function ListenPage({ assets, practice, structurePlan }) {
-  const [sourceMode, setSourceMode] = useState('assets');
-  const [listenScene, setListenScene] = useState('part-time-service-job');
+function getYouTubeEmbedUrl(url) {
+  const raw = toText(url);
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+    let videoId = '';
+
+    if (parsed.hostname.includes('youtu.be')) {
+      videoId = parsed.pathname.split('/').filter(Boolean)[0] || '';
+    } else if (parsed.hostname.includes('youtube.com')) {
+      if (parsed.pathname.includes('/shorts/')) {
+        videoId = parsed.pathname.split('/shorts/')[1]?.split('/')[0] || '';
+      } else if (parsed.pathname.includes('/embed/')) {
+        videoId = parsed.pathname.split('/embed/')[1]?.split('/')[0] || '';
+      } else {
+        videoId = parsed.searchParams.get('v') || '';
+      }
+    }
+
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function getListeningTokens(text) {
+  return toText(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9'\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 2);
+}
+
+function getListeningOverlap(target, attempt) {
+  const targetWords = [...new Set(getListeningTokens(target))];
+  const attemptWords = new Set(getListeningTokens(attempt));
+  const caught = targetWords.filter((word) => attemptWords.has(word));
+  const missed = targetWords.filter((word) => !attemptWords.has(word)).slice(0, 10);
+  const score = targetWords.length ? Math.round((caught.length / targetWords.length) * 100) : 0;
+
+  return { caught, missed, score };
+}
+
+function normalizeListeningPackForClient(pack) {
+  const safePack = pack && typeof pack === 'object' ? pack : {};
+  const sentences = Array.isArray(safePack.sentences)
+    ? safePack.sentences.map((item, index) => ({
+        ...item,
+        id: toText(item.id) || `line-${index + 1}`,
+        original: toText(item.original),
+        naturalSpeech: toText(item.naturalSpeech) || toText(item.original),
+        meaningZh: toText(item.meaningZh),
+        listeningProblem: toText(item.listeningProblem),
+        functionName: toText(item.functionName),
+        pattern: toText(item.pattern),
+        whyUse: toText(item.whyUse),
+        slots: toTextArray(item.slots),
+        chunks: Array.isArray(item.chunks)
+          ? item.chunks.map((chunk) => ({
+              text: toText(chunk.text || chunk),
+              whyHard: toText(chunk.whyHard),
+            })).filter((chunk) => chunk.text)
+          : [],
+        extensionExamples: toTextArray(item.extensionExamples),
+        replacementDrills: toTextArray(item.replacementDrills),
+        saveSuggestions: normalizeAssetList(item.saveSuggestions, {
+          sourceType: 'Listening',
+          sourceUrl: toText(safePack.sourceUrl),
+        }),
+      })).filter((item) => item.original)
+    : [];
+
+  return {
+    ...safePack,
+    id: toText(safePack.id) || uid(),
+    sourceTitle: toText(safePack.sourceTitle) || 'Video Listening Pack',
+    sourceUrl: toText(safePack.sourceUrl),
+    sourceSummary: toText(safePack.sourceSummary),
+    listeningGoal: toText(safePack.listeningGoal),
+    beforeListening: toTextArray(safePack.beforeListening),
+    finalTask: {
+      prompt: toText(safePack.finalTask?.prompt) || 'Describe what this video is about in your own English.',
+      checklist: toTextArray(safePack.finalTask?.checklist),
+    },
+    recommendedAssets: normalizeAssetList(safePack.recommendedAssets, {
+      sourceType: 'Listening',
+      sourceUrl: toText(safePack.sourceUrl),
+    }),
+    sentences,
+  };
+}
+
+function ListenPage({
+  assets,
+  practice,
+  structurePlan,
+  listeningPacks,
+  saveListeningPack,
+  deleteListeningPack,
+  saveListeningAsset,
+  setNotice,
+}) {
+  const [sourceMode, setSourceMode] = useState('video');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceText, setSourceText] = useState('');
+  const [packLoading, setPackLoading] = useState(false);
+  const [activePack, setActivePack] = useState(() => normalizeListeningPackForClient((listeningPacks || [])[0]));
+  const [activeSentenceIndex, setActiveSentenceIndex] = useState(0);
+  const [sentenceDrafts, setSentenceDrafts] = useState({});
+  const [revealedLines, setRevealedLines] = useState({});
+  const [meaningLines, setMeaningLines] = useState({});
+  const [swapDrafts, setSwapDrafts] = useState({});
+  const [finalSummary, setFinalSummary] = useState('');
+  const [review, setReview] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [savedAssetKeys, setSavedAssetKeys] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -3438,30 +3620,8 @@ function ListenPage({ assets, practice, structurePlan }) {
     return [...layerItems, ...sample].filter((item) => item.text);
   }, [structurePlan]);
 
-  const sceneItems = useMemo(() => {
-    const scene = getLiveScene(listenScene);
-    const pack = SCENE_LISTENING_PACKS[listenScene] || [];
-    return pack.flatMap((item, index) => ([
-      {
-        id: `scene-${listenScene}-${index}-q`,
-        label: `Question ${index + 1}`,
-        text: toText(item.question),
-        meaning: 'Listen first, pause, answer out loud or in your head.',
-        meta: `${scene.label} - real question`,
-      },
-      {
-        id: `scene-${listenScene}-${index}-a`,
-        label: `Sample ${index + 1}`,
-        text: toText(item.sample),
-        meaning: 'Reference answer. Shadow it, then replace details with your own.',
-        meta: `${scene.label} - sample answer`,
-      },
-    ])).filter((item) => item.text);
-  }, [listenScene]);
-
   const sourceItems = {
     assets: assetItems,
-    scene: sceneItems,
     recombine: recombineItems,
     structure: structureItems,
   };
@@ -3569,29 +3729,198 @@ function ListenPage({ assets, practice, structurePlan }) {
     setSelectedIds(assetItems.map((item) => item.id));
   }
 
+  const safePacks = Array.isArray(listeningPacks) ? listeningPacks : [];
+  const safePack = normalizeListeningPackForClient(activePack);
+  const activeSentence = safePack.sentences[activeSentenceIndex] || null;
+  const embedUrl = getYouTubeEmbedUrl(safePack.sourceUrl || sourceUrl);
+  const currentDraft = activeSentence ? toText(sentenceDrafts[activeSentence.id]) : '';
+  const overlap = activeSentence ? getListeningOverlap(activeSentence.original, currentDraft) : { caught: [], missed: [], score: 0 };
+
+  async function generateListeningPack() {
+    if (packLoading) return;
+    const cleanUrl = sourceUrl.trim();
+    const cleanText = sourceText.trim();
+
+    if (!cleanUrl && !cleanText) {
+      setNotice?.({ type: 'error', message: 'Paste a video/blog link or transcript text first.' });
+      return;
+    }
+
+    setPackLoading(true);
+    setReview(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/listening-pack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceUrl: cleanUrl, sourceText: cleanText }),
+      });
+      const data = await readApiJson(res, 'Listening pack API failed');
+
+      if (!res.ok || data.error) {
+        throw new Error(data.detail || data.error || 'Listening pack API failed');
+      }
+
+      const normalized = normalizeListeningPackForClient({
+        ...data,
+        sourceUrl: data.sourceUrl || cleanUrl,
+      });
+      const savedPack = saveListeningPack(normalized);
+      setActivePack(savedPack);
+      setActiveSentenceIndex(0);
+      setSentenceDrafts({});
+      setRevealedLines({});
+      setMeaningLines({});
+      setSwapDrafts({});
+      setFinalSummary('');
+    } catch (err) {
+      console.error('generateListeningPack error:', err);
+      setNotice?.({
+        type: 'error',
+        message: friendlyErrorMessage(
+          err.message,
+          'Listening pack generation failed. Paste transcript text if the link does not expose captions.'
+        ),
+      });
+    } finally {
+      setPackLoading(false);
+    }
+  }
+
+  function choosePack(pack) {
+    setActivePack(normalizeListeningPackForClient(pack));
+    setActiveSentenceIndex(0);
+    setReview(null);
+  }
+
+  function revealLine(id) {
+    setRevealedLines((value) => ({ ...value, [id]: true }));
+  }
+
+  function toggleMeaning(id) {
+    setMeaningLines((value) => ({ ...value, [id]: !value[id] }));
+  }
+
+  function updateSentenceDraft(id, value) {
+    setSentenceDrafts((drafts) => ({ ...drafts, [id]: value }));
+  }
+
+  function updateSwapDraft(id, index, value) {
+    setSwapDrafts((drafts) => ({
+      ...drafts,
+      [`${id}-${index}`]: value,
+    }));
+  }
+
+  function playSentence(sentence, speechRate = rate) {
+    return speak(sentence?.naturalSpeech || sentence?.original || '', speechRate);
+  }
+
+  async function playSentenceChunks(sentence, speechRate = Math.max(0.3, Number(rate))) {
+    const chunks = Array.isArray(sentence?.chunks) && sentence.chunks.length
+      ? sentence.chunks
+      : splitSentences(sentence?.original || '').map((text) => ({ text }));
+
+    for (const chunk of chunks) {
+      if (stopRef.current) break;
+      await speak(chunk.text, speechRate);
+      if (stopRef.current) break;
+      await wait(450);
+    }
+  }
+
+  async function savePackAsset(asset, sentence) {
+    const key = `${sentence?.id || 'pack'}-${toText(asset.text || asset.assetText)}`;
+    await saveListeningAsset(asset, {
+      sourceUrl: safePack.sourceUrl,
+      sourceType: 'Listening',
+      theme: safePack.sourceTitle,
+      notes: `Saved from ${safePack.sourceTitle}.`,
+    });
+    setSavedAssetKeys((keys) => (keys.includes(key) ? keys : [...keys, key]));
+  }
+
+  async function reviewFinalSummary() {
+    if (!finalSummary.trim() || reviewLoading) {
+      if (!finalSummary.trim()) {
+        setNotice?.({ type: 'error', message: 'Write your understanding of the video before asking for a score.' });
+      }
+      return;
+    }
+
+    setReviewLoading(true);
+
+    try {
+      const sentenceNotes = safePack.sentences.map((sentence) => ({
+        original: sentence.original,
+        learnerHeard: toText(sentenceDrafts[sentence.id]),
+        revealed: Boolean(revealedLines[sentence.id]),
+      }));
+      const res = await fetch(`${API_BASE}/api/listening-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceTitle: safePack.sourceTitle,
+          sourceSummary: safePack.sourceSummary,
+          userSummary: finalSummary,
+          sentenceNotes,
+        }),
+      });
+      const data = await readApiJson(res, 'Listening review API failed');
+
+      if (!res.ok || data.error) {
+        throw new Error(data.detail || data.error || 'Listening review API failed');
+      }
+
+      setReview({
+        ...data,
+        assets: normalizeAssetList(data.assets, {
+          sourceType: 'Listening',
+          sourceUrl: safePack.sourceUrl,
+          theme: safePack.sourceTitle,
+        }),
+      });
+    } catch (err) {
+      console.error('reviewFinalSummary error:', err);
+      setNotice?.({
+        type: 'error',
+        message: friendlyErrorMessage(err.message, 'Listening review failed. Please try again.'),
+      });
+    } finally {
+      setReviewLoading(false);
+    }
+  }
+
   return (
     <section className="page">
       <PageHeader
-        title="Listen Loop"
-        subtitle="Loop the expressions you saved, recombined, or structured so listening feeds directly into speaking output."
+        title="Video Intensive Listening Lab"
+        subtitle="Use one real video or transcript: listen without subtitles, write what you hear, reveal, diagnose, drill chunks, extend patterns, then summarize and save the best assets."
       />
 
       <div className="listen-layout">
         <aside className="listen-control">
           <div className="mode-switch">
             <button
+              className={sourceMode === 'video' ? 'mode-button active' : 'mode-button'}
+              onClick={() => setSourceMode('video')}
+            >
+              Video Lab
+              <span>Paste a link or transcript and eat the whole video.</span>
+            </button>
+            <button
+              className={sourceMode === 'feed' ? 'mode-button active' : 'mode-button'}
+              onClick={() => setSourceMode('feed')}
+            >
+              Daily Feed
+              <span>Open saved listening packs.</span>
+            </button>
+            <button
               className={sourceMode === 'assets' ? 'mode-button active' : 'mode-button'}
               onClick={() => setSourceMode('assets')}
             >
               Assets
               <span>Loop saved chunks and patterns.</span>
-            </button>
-            <button
-              className={sourceMode === 'scene' ? 'mode-button active' : 'mode-button'}
-              onClick={() => setSourceMode('scene')}
-            >
-              Scene Questions
-              <span>Hear real questions and sample answers.</span>
             </button>
             <button
               className={sourceMode === 'recombine' ? 'mode-button active' : 'mode-button'}
@@ -3609,17 +3938,56 @@ function ListenPage({ assets, practice, structurePlan }) {
             </button>
           </div>
 
-          {sourceMode === 'scene' && (
-            <div className="goal-selector">
-              <label>Listening Scene</label>
-              <select value={listenScene} onChange={(e) => setListenScene(e.target.value)}>
-                {LIVE_SCENES.map((scene) => (
-                  <option key={scene.id} value={scene.id}>
-                    {scene.label}
-                  </option>
-                ))}
-              </select>
-              <p>Listen to common questions, pause, answer, then shadow the sample answer.</p>
+          {sourceMode === 'video' && (
+            <div className="video-lab-builder">
+              <label>Video / Blog Link</label>
+              <input
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                placeholder="Paste YouTube, blog, course, or public link..."
+              />
+              <label>Transcript / Notes</label>
+              <textarea
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                placeholder="Paste transcript if you have it. This makes the pack much more accurate."
+              />
+              <button className="save-button" onClick={generateListeningPack} disabled={packLoading}>
+                <Sparkles size={17} />
+                {packLoading ? 'Building Pack...' : 'Generate Daily Feed Pack'}
+              </button>
+            </div>
+          )}
+
+          {sourceMode === 'feed' && (
+            <div className="daily-feed-list">
+              <div className="select-panel-header">
+                <div>
+                  <h3>Daily Feed</h3>
+                  <p>{safePacks.length} saved pack(s)</p>
+                </div>
+              </div>
+              {safePacks.length === 0 ? (
+                <p className="muted-text">No listening packs yet. Generate one from Video Lab.</p>
+              ) : (
+                safePacks.map((pack) => (
+                  <div className="feed-pack-row" key={pack.id}>
+                    <button
+                      className={pack.id === safePack.id ? 'select-asset selected' : 'select-asset'}
+                      onClick={() => choosePack(pack)}
+                    >
+                      <div>
+                        <strong>{toText(pack.sourceTitle)}</strong>
+                        <span>{toText(pack.sourceSummary) || `${pack.sentences?.length || 0} sentences`}</span>
+                      </div>
+                      <ChevronRight size={17} />
+                    </button>
+                    <button className="icon-button danger" onClick={() => deleteListeningPack(pack.id)} aria-label="Delete pack">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
@@ -3692,58 +4060,308 @@ function ListenPage({ assets, practice, structurePlan }) {
           )}
         </aside>
 
-        <div className="listen-player">
-          <div className="listen-now">
-            <p className="eyebrow">Now Listening</p>
-            <h2>{activeItem ? activeItem.label : 'No item selected'}</h2>
-            <p className={showText ? '' : 'hidden-text'}>
-              {activeItem ? activeItem.text : 'Choose assets or generate a Recombine / Structure result first.'}
-            </p>
-            {activeItem?.meta && <span className="listen-meta">{activeItem.meta}</span>}
-          </div>
-
-          <div className="listen-actions">
-            <button className="save-button" onClick={() => playQueue(currentIndex)} disabled={queue.length === 0 || isPlaying}>
-              <Play size={18} />
-              Play Loop
-            </button>
-            <button className="ghost-button" onClick={stopPlayback} disabled={!isPlaying}>
-              <Square size={18} />
-              Stop
-            </button>
-            <button className="ghost-button" onClick={playNext} disabled={queue.length === 0}>
-              <SkipForward size={18} />
-              Next
-            </button>
-          </div>
-
-          <div className="listen-queue">
-            <div className="select-panel-header">
-              <div>
-                <h3>Playback Queue</h3>
-                <p>{queue.length} items, {loopCount} loop(s)</p>
-              </div>
-            </div>
-
-            {queue.length === 0 ? (
-              <EmptyState title="No listening queue yet" text="Select assets, or generate a Recombine / Structure result first." />
+        {sourceMode === 'video' || sourceMode === 'feed' ? (
+          <div className="video-lab">
+            {safePack.sentences.length === 0 ? (
+              <EmptyState
+                title="Generate a listening pack"
+                text="Paste a video link or transcript. The app will turn it into sentence-level listening, chunk drills, sentence function analysis, replacement practice, final summary scoring, and saveable assets."
+              />
             ) : (
-              queue.map((item, index) => (
-                <button
-                  key={item.id}
-                  className={index === currentIndex ? 'listen-queue-item active' : 'listen-queue-item'}
-                  onClick={() => setCurrentIndex(index)}
-                >
-                  <span>{index + 1}</span>
+              <>
+                <div className="video-lab-hero">
                   <div>
-                    <strong className={showText ? '' : 'hidden-text'}>{item.text}</strong>
-                    <p>{item.label}</p>
+                    <p className="eyebrow">Original Video First</p>
+                    <h2>{safePack.sourceTitle}</h2>
+                    <p>{safePack.sourceSummary || safePack.listeningGoal}</p>
+                    {safePack.beforeListening.length > 0 && (
+                      <div className="pill-row">
+                        {safePack.beforeListening.map((item) => (
+                          <span className="pill role" key={item}>{item}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </button>
-              ))
+                  {embedUrl ? (
+                    <iframe
+                      className="video-embed"
+                      title={safePack.sourceTitle}
+                      src={embedUrl}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : safePack.sourceUrl ? (
+                    <a className="video-link-card" href={safePack.sourceUrl} target="_blank" rel="noreferrer">
+                      Open Original Source
+                    </a>
+                  ) : null}
+                </div>
+
+                <div className="sentence-lab-layout">
+                  <div className="sentence-list-panel">
+                    <div className="select-panel-header">
+                      <div>
+                        <h3>Sentence Units</h3>
+                        <p>{safePack.sentences.length} high-value line(s)</p>
+                      </div>
+                    </div>
+                    {safePack.sentences.map((sentence, index) => (
+                      <button
+                        key={sentence.id}
+                        className={index === activeSentenceIndex ? 'listen-queue-item active' : 'listen-queue-item'}
+                        onClick={() => setActiveSentenceIndex(index)}
+                      >
+                        <span>{index + 1}</span>
+                        <div>
+                          <strong>{revealedLines[sentence.id] ? sentence.original : 'Listen first, then reveal'}</strong>
+                          <p>{sentence.functionName || sentence.pattern || 'Daily spoken English'}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="sentence-study-panel">
+                    {activeSentence && (
+                      <>
+                        <div className="listen-now">
+                          <p className="eyebrow">Step 1 · Listen, Write, Then Reveal</p>
+                          <h2>Line {activeSentenceIndex + 1}</h2>
+                          <p className={revealedLines[activeSentence.id] && showText ? '' : 'hidden-text'}>
+                            {activeSentence.original}
+                          </p>
+                          <div className="listen-actions">
+                            <button className="save-button" onClick={() => playSentence(activeSentence, 1)}>
+                              <Play size={17} />
+                              Play Sentence
+                            </button>
+                            <button className="ghost-button" onClick={() => playSentence(activeSentence, 0.5)}>
+                              <Play size={17} />
+                              Slow
+                            </button>
+                            <button className="ghost-button" onClick={() => playSentenceChunks(activeSentence, rate)}>
+                              <Headphones size={17} />
+                              Chunk Listen
+                            </button>
+                            <button className="ghost-button" onClick={() => revealLine(activeSentence.id)}>
+                              <Eye size={17} />
+                              Reveal Transcript
+                            </button>
+                            <button className="ghost-button" onClick={() => toggleMeaning(activeSentence.id)}>
+                              中文
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="dictation-box">
+                          <label>Write the sentence you heard, or describe it in your own words</label>
+                          <textarea
+                            value={currentDraft}
+                            onChange={(e) => updateSentenceDraft(activeSentence.id, e.target.value)}
+                            placeholder="Type what you heard here..."
+                          />
+                          {revealedLines[activeSentence.id] && (
+                            <div className="listening-diagnosis">
+                              <strong>Listening match: {overlap.score}%</strong>
+                              <p>Caught: {overlap.caught.length ? overlap.caught.join(', ') : 'not enough yet'}</p>
+                              <p>Missed: {overlap.missed.length ? overlap.missed.join(', ') : 'looks solid'}</p>
+                              <p>{activeSentence.listeningProblem}</p>
+                            </div>
+                          )}
+                          {meaningLines[activeSentence.id] && (
+                            <div className="meaning-card">
+                              <strong>中文理解</strong>
+                              <p>{activeSentence.meaningZh || 'No Chinese meaning generated for this line.'}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="structure-section">
+                          <p className="eyebrow">Step 2 · Chunk Listening</p>
+                          <div className="chunk-grid">
+                            {activeSentence.chunks.map((chunk) => (
+                              <button className="chunk-card" key={chunk.text} onClick={() => speak(chunk.text, rate)}>
+                                <strong>{chunk.text}</strong>
+                                <span>{chunk.whyHard || 'Repeat this as one sound unit.'}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="structure-section">
+                          <p className="eyebrow">Step 3 · Sentence Function</p>
+                          <h3>{activeSentence.pattern || activeSentence.original}</h3>
+                          <p>{activeSentence.whyUse || activeSentence.functionName}</p>
+                          {activeSentence.slots.length > 0 && (
+                            <div className="pill-row">
+                              {activeSentence.slots.map((slot) => <span className="pill" key={slot}>{slot}</span>)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="structure-section">
+                          <p className="eyebrow">Step 4 · Extension Swap Practice</p>
+                          <div className="swap-grid">
+                            {(activeSentence.replacementDrills.length ? activeSentence.replacementDrills : activeSentence.extensionExamples).slice(0, 10).map((prompt, index) => (
+                              <label className="swap-card" key={`${activeSentence.id}-${index}`}>
+                                <span>{index + 1}. {prompt}</span>
+                                <input
+                                  value={swapDrafts[`${activeSentence.id}-${index}`] || ''}
+                                  onChange={(e) => updateSwapDraft(activeSentence.id, index, e.target.value)}
+                                  placeholder="Type your replacement sentence..."
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="structure-section">
+                          <p className="eyebrow">Worth Saving</p>
+                          <div className="suggested-save-grid">
+                            {[...activeSentence.saveSuggestions, ...safePack.recommendedAssets].slice(0, 6).map((asset, index) => {
+                              const key = `${activeSentence.id}-${toText(asset.text || asset.assetText)}-${index}`;
+                              return (
+                                <div className="live-asset-card" key={key}>
+                                  <span className="asset-type">{toText(asset.type) || 'Asset'}</span>
+                                  <h3>{toText(asset.text)}</h3>
+                                  <p>{toText(asset.functionName) || toText(asset.expressionFunction)}</p>
+                                  <button
+                                    className="ghost-button small"
+                                    onClick={() => savePackAsset(asset, activeSentence)}
+                                    disabled={savedAssetKeys.includes(`${activeSentence.id}-${toText(asset.text || asset.assetText)}`)}
+                                  >
+                                    <Save size={15} />
+                                    {savedAssetKeys.includes(`${activeSentence.id}-${toText(asset.text || asset.assetText)}`) ? 'Saved' : 'Save to Assets'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="sentence-nav">
+                          <button
+                            className="ghost-button"
+                            onClick={() => setActiveSentenceIndex(Math.max(0, activeSentenceIndex - 1))}
+                            disabled={activeSentenceIndex === 0}
+                          >
+                            Previous
+                          </button>
+                          <button
+                            className="save-button"
+                            onClick={() => setActiveSentenceIndex(Math.min(safePack.sentences.length - 1, activeSentenceIndex + 1))}
+                            disabled={activeSentenceIndex >= safePack.sentences.length - 1}
+                          >
+                            Next Sentence
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="final-review-panel">
+                  <p className="eyebrow">Step 5 · Full Video Output</p>
+                  <h3>Describe what this video is mainly about</h3>
+                  <p>{safePack.finalTask.prompt}</p>
+                  {safePack.finalTask.checklist.length > 0 && (
+                    <div className="pill-row">
+                      {safePack.finalTask.checklist.map((item) => <span className="pill" key={item}>{item}</span>)}
+                    </div>
+                  )}
+                  <textarea
+                    value={finalSummary}
+                    onChange={(e) => setFinalSummary(e.target.value)}
+                    placeholder="Write your English summary or retelling here..."
+                  />
+                  <button className="save-button" onClick={reviewFinalSummary} disabled={reviewLoading}>
+                    <Sparkles size={17} />
+                    {reviewLoading ? 'Scoring...' : 'Score and Optimize'}
+                  </button>
+
+                  {review && (
+                    <div className="review-result">
+                      <strong>Score: {review.score}/100</strong>
+                      <p>{review.understanding}</p>
+                      <h4>Optimized English</h4>
+                      <p>{review.optimizedEnglish}</p>
+                      {Array.isArray(review.mainProblems) && review.mainProblems.length > 0 && (
+                        <ul>
+                          {review.mainProblems.map((item) => <li key={item}>{item}</li>)}
+                        </ul>
+                      )}
+                      <div className="suggested-save-grid">
+                        {(review.assets || []).map((asset, index) => (
+                          <div className="live-asset-card" key={`${toText(asset.text)}-${index}`}>
+                            <span className="asset-type">{toText(asset.type)}</span>
+                            <h3>{toText(asset.text)}</h3>
+                            <p>{toText(asset.functionName)}</p>
+                            <button className="ghost-button small" onClick={() => savePackAsset(asset, activeSentence)}>
+                              <Save size={15} />
+                              Save to Assets
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
-        </div>
+        ) : (
+          <div className="listen-player">
+            <div className="listen-now">
+              <p className="eyebrow">Now Listening</p>
+              <h2>{activeItem ? activeItem.label : 'No item selected'}</h2>
+              <p className={showText ? '' : 'hidden-text'}>
+                {activeItem ? activeItem.text : 'Choose assets or generate a Recombine / Structure result first.'}
+              </p>
+              {activeItem?.meta && <span className="listen-meta">{activeItem.meta}</span>}
+            </div>
+
+            <div className="listen-actions">
+              <button className="save-button" onClick={() => playQueue(currentIndex)} disabled={queue.length === 0 || isPlaying}>
+                <Play size={18} />
+                Play Loop
+              </button>
+              <button className="ghost-button" onClick={stopPlayback} disabled={!isPlaying}>
+                <Square size={18} />
+                Stop
+              </button>
+              <button className="ghost-button" onClick={playNext} disabled={queue.length === 0}>
+                <SkipForward size={18} />
+                Next
+              </button>
+            </div>
+
+            <div className="listen-queue">
+              <div className="select-panel-header">
+                <div>
+                  <h3>Playback Queue</h3>
+                  <p>{queue.length} items, {loopCount} loop(s)</p>
+                </div>
+              </div>
+
+              {queue.length === 0 ? (
+                <EmptyState title="No listening queue yet" text="Select assets, or generate a Recombine / Structure result first." />
+              ) : (
+                queue.map((item, index) => (
+                  <button
+                    key={item.id}
+                    className={index === currentIndex ? 'listen-queue-item active' : 'listen-queue-item'}
+                    onClick={() => setCurrentIndex(index)}
+                  >
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong className={showText ? '' : 'hidden-text'}>{item.text}</strong>
+                      <p>{item.label}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

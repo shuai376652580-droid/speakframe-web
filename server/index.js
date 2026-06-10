@@ -151,6 +151,63 @@ function normalizeGeneratedAssets(value, sourceUrl) {
     .filter((asset) => asset.assetText);
 }
 
+function normalizeListeningSentence(item, index) {
+  const safeItem = item && typeof item === "object" ? item : {};
+  const original = toText(safeItem.original || safeItem.sentence || safeItem.text);
+  const chunks = Array.isArray(safeItem.chunks)
+    ? safeItem.chunks.map((chunk) => {
+        if (typeof chunk === "string") {
+          return { text: toText(chunk), whyHard: "This chunk can be hard to catch in fast speech." };
+        }
+
+        const safeChunk = chunk && typeof chunk === "object" ? chunk : {};
+        return {
+          text: toText(safeChunk.text || safeChunk.chunk),
+          whyHard: toText(safeChunk.whyHard || safeChunk.reason),
+        };
+      }).filter((chunk) => chunk.text)
+    : [];
+
+  return {
+    id: toText(safeItem.id) || `line-${index + 1}`,
+    original,
+    naturalSpeech: toText(safeItem.naturalSpeech || safeItem.spokenForm) || original,
+    meaningZh: toText(safeItem.meaningZh || safeItem.meaning),
+    listeningProblem: toText(safeItem.listeningProblem || safeItem.whyHard),
+    functionName: toText(safeItem.functionName || safeItem.function),
+    pattern: toText(safeItem.pattern || safeItem.rootPattern),
+    whyUse: toText(safeItem.whyUse || safeItem.whyThisSentence),
+    slots: toTextArray(safeItem.slots),
+    chunks,
+    extensionExamples: toTextArray(safeItem.extensionExamples || safeItem.examples).slice(0, 10),
+    replacementDrills: toTextArray(safeItem.replacementDrills || safeItem.swapPractice).slice(0, 10),
+    saveSuggestions: normalizeGeneratedAssets(safeItem.saveSuggestions || safeItem.assets, ""),
+  };
+}
+
+function normalizeListeningPack(data, sourceUrl) {
+  const safeData = data && typeof data === "object" ? data : {};
+  const sentences = Array.isArray(safeData.sentences)
+    ? safeData.sentences.map(normalizeListeningSentence).filter((item) => item.original)
+    : [];
+
+  return {
+    sourceTitle: toText(safeData.sourceTitle || safeData.title) || "Video Listening Pack",
+    sourceUrl: toText(safeData.sourceUrl) || sourceUrl,
+    sourceSummary: toText(safeData.sourceSummary || safeData.summary),
+    listeningGoal: toText(safeData.listeningGoal) || "Understand natural daily English and reuse the best expressions.",
+    beforeListening: toTextArray(safeData.beforeListening || safeData.predictionPrompts),
+    sentences: sentences.slice(0, 12),
+    finalTask: {
+      prompt:
+        toText(safeData.finalTask?.prompt) ||
+        "Describe what this video is mainly about in your own English.",
+      checklist: toTextArray(safeData.finalTask?.checklist),
+    },
+    recommendedAssets: normalizeGeneratedAssets(safeData.recommendedAssets || safeData.assets, sourceUrl),
+  };
+}
+
 function getClientError(err, fallback) {
   const message = toText(err?.message || err);
 
@@ -547,6 +604,229 @@ Rules:
       err,
       "Video asset extraction failed",
       "Video parsing failed. The video may not expose transcript text, or the server/API key may need attention."
+    );
+  }
+});
+
+app.post("/api/listening-pack", async (req, res) => {
+  try {
+    const sourceUrl = toText(req.body?.sourceUrl);
+    const sourceText = toText(req.body?.sourceText);
+
+    if (!sourceUrl && !sourceText) {
+      return res.status(400).json({
+        error: "Listening source is required",
+        detail: "Paste a video/blog link or transcript text before generating a listening pack.",
+      });
+    }
+
+    if (sourceUrl && !isHttpUrl(sourceUrl)) {
+      return res.status(400).json({
+        error: "Valid source URL is required",
+        detail: "The source link must start with http or https.",
+      });
+    }
+
+    const prompt = `
+You are SpeakFrame's Video Intensive Listening Lab builder.
+
+The learner is a Chinese speaker who wants to understand real daily spoken English, not memorize random words.
+Build a full listening study pack from the source. The video/blog itself should remain the main media, but transcript sentences become the training units.
+
+Source URL:
+${sourceUrl || "No URL provided"}
+
+Transcript or pasted text:
+${sourceText || "No pasted transcript. If URL context is available, inspect public captions, transcript, page text, description, or visible text."}
+
+Return ONLY raw JSON.
+Do not use markdown.
+Do not use code block.
+Do not add explanation outside JSON.
+
+JSON format:
+{
+  "sourceTitle": "",
+  "sourceUrl": "",
+  "sourceSummary": "",
+  "listeningGoal": "",
+  "beforeListening": [],
+  "sentences": [
+    {
+      "original": "",
+      "naturalSpeech": "",
+      "meaningZh": "",
+      "listeningProblem": "",
+      "functionName": "",
+      "pattern": "",
+      "whyUse": "",
+      "slots": [],
+      "chunks": [
+        { "text": "", "whyHard": "" }
+      ],
+      "extensionExamples": [],
+      "replacementDrills": [],
+      "saveSuggestions": [
+        {
+          "sourceSentence": "",
+          "recommendedType": "Chunk",
+          "assetText": "",
+          "meaning": "",
+          "functionName": "",
+          "expressionFunction": "",
+          "comboRole": "",
+          "rootPattern": "",
+          "slots": [],
+          "scenarios": [],
+          "examples": [],
+          "tags": [],
+          "difficulty": "B1-B2",
+          "theme": "",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "finalTask": {
+    "prompt": "",
+    "checklist": []
+  },
+  "recommendedAssets": []
+}
+
+Rules:
+1. Prefer daily-life, general conversation, plans, feelings, reactions, asking for help, explaining what happened, and small talk.
+2. Extract 6-10 high-value sentences from the source. If the source has more text, choose the most useful lines for real listening and speaking.
+3. Do not invent direct quotes if the source/transcript is not accessible. If only a topic is accessible, create a clearly adapted natural practice pack and say that in sourceSummary.
+4. original is the clean transcript sentence.
+5. naturalSpeech shows how it may sound in spoken English: gonna, wanna, weak forms, linking, reduced words. Keep it readable.
+6. listeningProblem must explain why a learner may miss it: weak form, linking, speed, chunk boundary, unfamiliar pattern, or meaning prediction.
+7. chunks must be short listenable units, not isolated vocabulary only.
+8. pattern must be reusable with [slots].
+9. whyUse explains the communication function, not grammar theory.
+10. extensionExamples must include 4-6 natural variations.
+11. replacementDrills must include exactly 10 fill-in or swap prompts when possible.
+12. saveSuggestions should include 1-3 assets for each strong sentence.
+13. recommendedAssets should include 4-8 best assets from the full pack.
+14. All explanation fields except meaningZh can be English. meaningZh must be concise Chinese.
+15. Asset recommendedType must be one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
+`;
+
+    const rawText = sourceUrl
+      ? await generateVideoContent(prompt, { tools: [{ urlContext: {} }] })
+      : await generateTextContent(prompt);
+
+    const data = safeParseJson(rawText);
+    const pack = normalizeListeningPack(data, sourceUrl);
+
+    if (pack.sentences.length === 0) {
+      return res.status(422).json({
+        error: "No listening pack generated",
+        detail: "I could not build a usable listening pack from this source. Paste transcript text if the page does not expose captions.",
+      });
+    }
+
+    res.json(pack);
+  } catch (err) {
+    console.error("Listening pack error:", err);
+    sendAiError(
+      res,
+      err,
+      "Listening pack generation failed",
+      "Listening pack generation failed. Please check the source, server connection, and API key."
+    );
+  }
+});
+
+app.post("/api/listening-review", async (req, res) => {
+  try {
+    const sourceTitle = toText(req.body?.sourceTitle);
+    const sourceSummary = toText(req.body?.sourceSummary);
+    const userSummary = toText(req.body?.userSummary);
+    const sentenceNotes = Array.isArray(req.body?.sentenceNotes) ? req.body.sentenceNotes : [];
+
+    if (!userSummary) {
+      return res.status(400).json({
+        error: "Summary is required",
+        detail: "Write your understanding of the video before asking for a review.",
+      });
+    }
+
+    const rawText = await generateTextContent(`
+You are SpeakFrame's listening review coach.
+
+Evaluate the learner's final output after a video intensive listening session.
+
+Video title:
+${sourceTitle}
+
+Source summary:
+${sourceSummary}
+
+Learner sentence notes:
+${JSON.stringify(sentenceNotes.slice(0, 12))}
+
+Learner final summary:
+${userSummary}
+
+Return ONLY raw JSON.
+Do not use markdown.
+Do not use code block.
+
+JSON format:
+{
+  "score": 0,
+  "understanding": "",
+  "mainProblems": [],
+  "optimizedEnglish": "",
+  "nextPractice": [],
+  "assets": [
+    {
+      "sourceSentence": "",
+      "recommendedType": "Chunk",
+      "assetText": "",
+      "meaning": "",
+      "functionName": "",
+      "expressionFunction": "",
+      "comboRole": "",
+      "rootPattern": "",
+      "slots": [],
+      "scenarios": [],
+      "examples": [],
+      "tags": [],
+      "difficulty": "B1-B2",
+      "theme": "",
+      "notes": ""
+    }
+  ]
+}
+
+Rules:
+1. score is 0-100 for listening understanding plus spoken summary quality.
+2. understanding should be concise Chinese feedback.
+3. mainProblems should diagnose concrete issues: missed chunks, unclear logic, weak detail, unnatural wording, or misunderstanding.
+4. optimizedEnglish should rewrite the learner's summary naturally at B1-B2 level.
+5. nextPractice gives 3 concrete listening actions.
+6. Extract 3-6 reusable assets from the learner's weak points or optimized version.
+`);
+
+    const data = safeParseJson(rawText);
+
+    res.json({
+      score: Number(data.score) || 0,
+      understanding: toText(data.understanding),
+      mainProblems: toTextArray(data.mainProblems),
+      optimizedEnglish: toText(data.optimizedEnglish),
+      nextPractice: toTextArray(data.nextPractice),
+      assets: normalizeGeneratedAssets(data.assets, ""),
+    });
+  } catch (err) {
+    console.error("Listening review error:", err);
+    sendAiError(
+      res,
+      err,
+      "Listening review failed",
+      "Listening review failed. Please check the server connection and API key."
     );
   }
 });
