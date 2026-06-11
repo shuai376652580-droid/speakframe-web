@@ -3927,6 +3927,31 @@ function ListenPage({
                   ))
                 )}
               </div>
+
+              {safePack.sentences.length > 0 && (
+                <div className="sentence-list-panel">
+                  <div className="select-panel-header">
+                    <div>
+                      <p className="eyebrow">3 · Sentence Units</p>
+                      <h3>Study Lines</h3>
+                      <p>{safePack.sentences.length} high-value line(s)</p>
+                    </div>
+                  </div>
+                  {safePack.sentences.map((sentence, index) => (
+                    <button
+                      key={sentence.id}
+                      className={index === activeSentenceIndex ? 'listen-queue-item active' : 'listen-queue-item'}
+                      onClick={() => chooseSentence(index)}
+                    >
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{revealedLines[sentence.id] ? sentence.original : 'Listen first, then reveal'}</strong>
+                        <p>{sentence.functionName || sentence.pattern || 'Daily spoken English'}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
@@ -4086,30 +4111,7 @@ function ListenPage({
                   )}
                 </div>
 
-                <div className="sentence-lab-layout">
-                  <div className="sentence-list-panel">
-                    <div className="select-panel-header">
-                      <div>
-                        <h3>Sentence Units</h3>
-                        <p>{safePack.sentences.length} high-value line(s)</p>
-                      </div>
-                    </div>
-                    {safePack.sentences.map((sentence, index) => (
-                      <button
-                        key={sentence.id}
-                        className={index === activeSentenceIndex ? 'listen-queue-item active' : 'listen-queue-item'}
-                        onClick={() => chooseSentence(index)}
-                      >
-                        <span>{index + 1}</span>
-                        <div>
-                          <strong>{revealedLines[sentence.id] ? sentence.original : 'Listen first, then reveal'}</strong>
-                          <p>{sentence.functionName || sentence.pattern || 'Daily spoken English'}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="sentence-study-panel">
+                <div className="sentence-study-panel">
                     {activeSentence && (
                       <div className="video-study-inner-tabs">
                         <button
@@ -4310,80 +4312,79 @@ function ListenPage({
                     )}
 
                     {videoStudyView === 'test' && sentenceStep === 5 && (
-                <div className="final-review-panel">
-                  <p className="eyebrow">Step 5 · Full Video Output</p>
-                  <h3>Describe what this video is mainly about</h3>
-                  <p>{safePack.finalTask.prompt}</p>
-                  {safePack.finalTask.checklist.length > 0 && (
-                    <div className="pill-row">
-                      {safePack.finalTask.checklist.map((item) => <span className="pill" key={item}>{item}</span>)}
-                    </div>
-                  )}
-                  {safePack.recommendedAssets.length > 0 && (
-                    <div className="structure-section test-card">
-                      <p className="eyebrow">Worth Saving</p>
-                      <h3>Save the best reusable language from this pack</h3>
-                      <div className="suggested-save-grid">
-                        {safePack.recommendedAssets.slice(0, 6).map((asset, index) => {
-                          const key = `final-${toText(asset.text || asset.assetText)}-${index}`;
-                          return (
-                            <div className="live-asset-card" key={key}>
-                              <span className="asset-type">{toText(asset.type) || 'Asset'}</span>
-                              <h3>{toText(asset.text)}</h3>
-                              <p>{toText(asset.functionName) || toText(asset.expressionFunction)}</p>
-                              <button
-                                className="ghost-button small"
-                                onClick={() => savePackAsset(asset, null)}
-                                disabled={savedAssetKeys.includes(`pack-${toText(asset.text || asset.assetText)}`)}
-                              >
-                                <Save size={15} />
-                                {savedAssetKeys.includes(`pack-${toText(asset.text || asset.assetText)}`) ? 'Saved' : 'Save to Assets'}
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  <textarea
-                    value={finalSummary}
-                    onChange={(e) => setFinalSummary(e.target.value)}
-                    placeholder="Write your English summary or retelling here..."
-                  />
-                  <button className="save-button" onClick={reviewFinalSummary} disabled={reviewLoading}>
-                    <Sparkles size={17} />
-                    {reviewLoading ? 'Scoring...' : 'Score and Optimize'}
-                  </button>
-
-                  {review && (
-                    <div className="review-result">
-                      <strong>Score: {review.score}/100</strong>
-                      <p>{review.understanding}</p>
-                      <h4>Optimized English</h4>
-                      <p>{review.optimizedEnglish}</p>
-                      {Array.isArray(review.mainProblems) && review.mainProblems.length > 0 && (
-                        <ul>
-                          {review.mainProblems.map((item) => <li key={item}>{item}</li>)}
-                        </ul>
-                      )}
-                      <div className="suggested-save-grid">
-                        {(review.assets || []).map((asset, index) => (
-                          <div className="live-asset-card" key={`${toText(asset.text)}-${index}`}>
-                            <span className="asset-type">{toText(asset.type)}</span>
-                            <h3>{toText(asset.text)}</h3>
-                            <p>{toText(asset.functionName)}</p>
-                            <button className="ghost-button small" onClick={() => savePackAsset(asset, activeSentence)}>
-                              <Save size={15} />
-                              Save to Assets
-                            </button>
+                      <div className="final-review-panel">
+                        <p className="eyebrow">Step 5 · Full Video Output</p>
+                        <h3>Describe what this video is mainly about</h3>
+                        <p>{safePack.finalTask.prompt}</p>
+                        {safePack.finalTask.checklist.length > 0 && (
+                          <div className="pill-row">
+                            {safePack.finalTask.checklist.map((item) => <span className="pill" key={item}>{item}</span>)}
                           </div>
-                        ))}
+                        )}
+                        {safePack.recommendedAssets.length > 0 && (
+                          <div className="structure-section test-card">
+                            <p className="eyebrow">Worth Saving</p>
+                            <h3>Save the best reusable language from this pack</h3>
+                            <div className="suggested-save-grid">
+                              {safePack.recommendedAssets.slice(0, 6).map((asset, index) => {
+                                const key = `final-${toText(asset.text || asset.assetText)}-${index}`;
+                                return (
+                                  <div className="live-asset-card" key={key}>
+                                    <span className="asset-type">{toText(asset.type) || 'Asset'}</span>
+                                    <h3>{toText(asset.text)}</h3>
+                                    <p>{toText(asset.functionName) || toText(asset.expressionFunction)}</p>
+                                    <button
+                                      className="ghost-button small"
+                                      onClick={() => savePackAsset(asset, null)}
+                                      disabled={savedAssetKeys.includes(`pack-${toText(asset.text || asset.assetText)}`)}
+                                    >
+                                      <Save size={15} />
+                                      {savedAssetKeys.includes(`pack-${toText(asset.text || asset.assetText)}`) ? 'Saved' : 'Save to Assets'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        <textarea
+                          value={finalSummary}
+                          onChange={(e) => setFinalSummary(e.target.value)}
+                          placeholder="Write your English summary or retelling here..."
+                        />
+                        <button className="save-button" onClick={reviewFinalSummary} disabled={reviewLoading}>
+                          <Sparkles size={17} />
+                          {reviewLoading ? 'Scoring...' : 'Score and Optimize'}
+                        </button>
+
+                        {review && (
+                          <div className="review-result">
+                            <strong>Score: {review.score}/100</strong>
+                            <p>{review.understanding}</p>
+                            <h4>Optimized English</h4>
+                            <p>{review.optimizedEnglish}</p>
+                            {Array.isArray(review.mainProblems) && review.mainProblems.length > 0 && (
+                              <ul>
+                                {review.mainProblems.map((item) => <li key={item}>{item}</li>)}
+                              </ul>
+                            )}
+                            <div className="suggested-save-grid">
+                              {(review.assets || []).map((asset, index) => (
+                                <div className="live-asset-card" key={`${toText(asset.text)}-${index}`}>
+                                  <span className="asset-type">{toText(asset.type)}</span>
+                                  <h3>{toText(asset.text)}</h3>
+                                  <p>{toText(asset.functionName)}</p>
+                                  <button className="ghost-button small" onClick={() => savePackAsset(asset, activeSentence)}>
+                                    <Save size={15} />
+                                    Save to Assets
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </div>
                     )}
-                  </div>
                 </div>
               </>
             )}
