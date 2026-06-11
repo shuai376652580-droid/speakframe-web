@@ -176,12 +176,23 @@ function cleanTranscriptText(text) {
     .trim();
 }
 
+function getUploadFileName(file) {
+  const rawName = toText(file?.originalname) || "uploaded-file";
+  const decodedName = Buffer.from(rawName, "latin1").toString("utf8");
+
+  if (decodedName && decodedName !== rawName && !decodedName.includes("�")) {
+    return decodedName;
+  }
+
+  return rawName;
+}
+
 async function extractTextFromUpload(file) {
   if (!file?.buffer) {
     throw new Error("No file uploaded.");
   }
 
-  const ext = path.extname(file.originalname || "").toLowerCase();
+  const ext = path.extname(getUploadFileName(file)).toLowerCase();
   const mime = toText(file.mimetype).toLowerCase();
 
   if ([".txt", ".srt", ".vtt", ".md", ".csv"].includes(ext) || mime.startsWith("text/")) {
@@ -722,7 +733,7 @@ app.post("/api/listening-source-file", upload.single("file"), async (req, res) =
     }
 
     res.json({
-      fileName: req.file?.originalname || "uploaded-file",
+      fileName: getUploadFileName(req.file),
       text,
       sentenceCount: transcriptUnits.length,
       charCount: text.length,

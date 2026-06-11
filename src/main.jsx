@@ -3466,6 +3466,7 @@ function ListenPage({
   const [loopCount, setLoopCount] = useState(3);
   const [showText, setShowText] = useState(true);
   const [includeMeaning, setIncludeMeaning] = useState(false);
+  const sourceTextRef = useRef('');
   const stopRef = useRef(false);
   const timerRef = useRef(null);
 
@@ -3669,7 +3670,9 @@ function ListenPage({
         throw new Error(data.detail || data.error || 'Transcript file upload failed');
       }
 
-      setSourceText(toText(data.text));
+      const extractedText = toText(data.text);
+      sourceTextRef.current = extractedText;
+      setSourceText(extractedText);
       setSourceFileName(toText(data.fileName) || file.name);
       setNotice?.({
         type: 'success',
@@ -3689,7 +3692,7 @@ function ListenPage({
   async function generateListeningPack() {
     if (packLoading) return;
     const cleanUrl = sourceUrl.trim();
-    const cleanText = sourceText.trim();
+    const cleanText = (sourceText.trim() || sourceTextRef.current.trim());
 
     if (!cleanUrl && !cleanText) {
       setNotice?.({ type: 'error', message: 'Paste a video/blog link or transcript text first.' });
@@ -3942,7 +3945,11 @@ function ListenPage({
                 <label>Or Paste Transcript / Captions</label>
                 <textarea
                   value={sourceText}
-                  onChange={(e) => setSourceText(e.target.value)}
+                  onChange={(e) => {
+                    sourceTextRef.current = e.target.value;
+                    setSourceText(e.target.value);
+                    if (!e.target.value.trim()) setSourceFileName('');
+                  }}
                   placeholder="Paste the full transcript or captions here. The app will split every sentence for listening practice."
                 />
                 <button className="save-button" onClick={generateListeningPack} disabled={packLoading}>
