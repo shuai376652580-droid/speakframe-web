@@ -147,6 +147,15 @@ function extractUsefulEnglishText(text) {
   return [...new Set(sentences)].join("\n").slice(0, 12000);
 }
 
+function countTranscriptLikeSentences(text) {
+  return toText(text)
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter((line) => /[a-zA-Z]{3,}/.test(line))
+    .filter((line) => line.length >= 12 && line.length <= 260)
+    .length;
+}
+
 async function fetchPublicPageText(url) {
   if (!url || !isHttpUrl(url)) return "";
 
@@ -585,6 +594,7 @@ app.post("/api/listening-pack", async (req, res) => {
 
     const fetchedText = sourceText ? "" : await fetchPublicPageText(sourceUrl);
     const availableText = sourceText || fetchedText;
+    const transcriptSentenceCount = countTranscriptLikeSentences(availableText);
     const sourceHint = availableText
       ? availableText
       : "No pasted transcript or readable page text was found. If URL context is available, inspect public captions, transcript, page text, description, or visible text.";
@@ -675,11 +685,11 @@ Rules:
 16. Asset recommendedType must be one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
 `;
 
-    if (sourceUrl && !availableText) {
+    if (sourceUrl && !sourceText && (!availableText || transcriptSentenceCount < 12)) {
       return res.status(422).json({
-        error: "Transcript text is required",
+        error: "Full transcript is required",
         detail:
-          "I could not read transcript text from this link. Please paste the transcript into Transcript / Notes, then generate the listening pack again.",
+          "I could not read enough transcript sentences from this link. To study the whole video, paste the full transcript into Transcript / Notes, then generate the listening pack again.",
       });
     }
 
