@@ -714,7 +714,7 @@ function friendlyErrorMessage(value, fallback) {
     lower.includes('paste the transcript') ||
     lower.includes('could not read transcript text')
   ) {
-    return 'I could not read the transcript from this link. Paste the transcript into Transcript / Notes, then generate the listening pack again.';
+    return 'I could not read the full transcript from this link. Paste the full transcript or captions, then generate the listening pack again.';
   }
 
   if (message.trim().startsWith('{') || message.length > 220) {
@@ -3876,8 +3876,8 @@ function ListenPage({
               <div className="video-lab-builder primary-builder">
                 <div>
                   <p className="eyebrow">1 · Import Listening Source</p>
-                  <h3>Video / Transcript to Daily Feed</h3>
-                  <p>Paste a real source, generate a pack, then study it sentence by sentence.</p>
+                  <h3>Video + Transcript to Daily Feed</h3>
+                  <p>Add the source video, then provide the full transcript so every sentence can become a listening unit.</p>
                 </div>
                 <label>Video / Blog Link</label>
                 <input
@@ -3885,11 +3885,11 @@ function ListenPage({
                   onChange={(e) => setSourceUrl(e.target.value)}
                   placeholder="Paste YouTube, blog, course, or public link..."
                 />
-                <label>Transcript / Notes</label>
+                <label>Transcript / Captions</label>
                 <textarea
                   value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)}
-                  placeholder="Paste transcript if you have it. This makes the pack much more accurate."
+                  placeholder="Paste the full transcript or captions here. The app will split every sentence for listening practice."
                 />
                 <button className="save-button" onClick={generateListeningPack} disabled={packLoading}>
                   <Sparkles size={17} />

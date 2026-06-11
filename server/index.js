@@ -779,7 +779,7 @@ Rules:
       return res.status(422).json({
         error: "Full transcript is required",
         detail:
-          "I could not read enough transcript sentences from this link. To study the whole video, paste the full transcript into Transcript / Notes, then generate the listening pack again.",
+          "I could not read enough transcript sentences from this link. To study the whole video, paste the full transcript or captions, then generate the listening pack again.",
       });
     }
 
