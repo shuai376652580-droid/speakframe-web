@@ -3673,10 +3673,10 @@ function ListenPage({
       const extractedText = toText(data.text);
       sourceTextRef.current = extractedText;
       setSourceText(extractedText);
-      setSourceFileName(toText(data.fileName) || file.name);
+      setSourceFileName(file.name);
       setNotice?.({
         type: 'success',
-        message: `Transcript loaded from ${toText(data.fileName) || file.name}. ${data.sentenceCount || 0} sentence unit(s) detected.`,
+        message: `Transcript loaded from ${file.name}. ${data.sentenceCount || 0} sentence unit(s) detected.`,
       });
     } catch (err) {
       console.error('uploadListeningSourceFile error:', err);

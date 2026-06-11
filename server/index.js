@@ -176,6 +176,14 @@ function cleanTranscriptText(text) {
     .trim();
 }
 
+function buildTranscriptFromUnits(text) {
+  const units = splitTranscriptUnits(text);
+  return {
+    text: units.map((unit, index) => `${index + 1} ${unit}`).join("\n"),
+    units,
+  };
+}
+
 function getUploadFileName(file) {
   const rawName = toText(file?.originalname) || "uploaded-file";
   const decodedName = Buffer.from(rawName, "latin1").toString("utf8");
@@ -722,8 +730,8 @@ Rules:
 
 app.post("/api/listening-source-file", upload.single("file"), async (req, res) => {
   try {
-    const text = await extractTextFromUpload(req.file);
-    const transcriptUnits = splitTranscriptUnits(text);
+    const rawText = await extractTextFromUpload(req.file);
+    const { text, units: transcriptUnits } = buildTranscriptFromUnits(rawText);
 
     if (!text || transcriptUnits.length === 0) {
       return res.status(422).json({
@@ -735,6 +743,7 @@ app.post("/api/listening-source-file", upload.single("file"), async (req, res) =
     res.json({
       fileName: getUploadFileName(req.file),
       text,
+      rawCharCount: rawText.length,
       sentenceCount: transcriptUnits.length,
       charCount: text.length,
     });
