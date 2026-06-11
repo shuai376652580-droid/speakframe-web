@@ -253,13 +253,94 @@ function normalizeListeningSentence(item, index) {
   };
 }
 
-function normalizeListeningPack(data, sourceUrl) {
+function splitTranscriptUnits(text) {
+  const cleaned = toText(text)
+    .replace(/\r/g, "\n")
+    .replace(/\b\d+\s+\d{1,2}:\d{2}(?::\d{2})?\s*[-–]\s*\d{1,2}:\d{2}(?::\d{2})?/g, "\n")
+    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s*[-–]\s*\d{1,2}:\d{2}(?::\d{2})?/g, "\n")
+    .replace(/^\s*\d+\s*$/gm, "\n")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'");
+
+  const roughUnits = cleaned
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((line) => line.replace(/^\s*\d+[\).\s-]+/, "").trim())
+    .map((line) => line.replace(/\s+/g, " "))
+    .filter((line) => /[a-zA-Z]{3,}/.test(line))
+    .filter((line) => line.length >= 4 && line.length <= 260)
+    .filter((line) => !/^https?:\/\//i.test(line));
+
+  const seen = new Set();
+  return roughUnits.filter((line) => {
+    const key = line.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getGenericListeningProblem(sentence) {
+  const lower = toText(sentence).toLowerCase();
+  if (/\b(gonna|wanna|gotta|kinda|sorta|lemme|gimme)\b/.test(lower)) {
+    return "This can be hard to catch because common spoken reductions may sound much shorter than the written words.";
+  }
+  if (/\b(that|to|of|for|and|or|but|can|could|would|should|have|has|had)\b/.test(lower)) {
+    return "Small function words can become weak and connect to the words around them in natural speech.";
+  }
+  return "This line may be difficult because the meaning comes as a full chunk, not word by word.";
+}
+
+function fallbackListeningSentence(original, index) {
+  const sentence = toText(original);
+  return {
+    id: `line-${index + 1}`,
+    original: sentence,
+    naturalSpeech: sentence,
+    meaningZh: "",
+    listeningProblem: getGenericListeningProblem(sentence),
+    functionName: "Understand this transcript sentence",
+    pattern: sentence,
+    whyUse: "This sentence is part of the full source transcript and should be tested before moving on.",
+    slots: [],
+    chunks: [{ text: sentence, whyHard: "Listen to this as one meaning unit first, then break it into smaller chunks." }],
+    extensionExamples: [],
+    replacementDrills: [],
+    saveSuggestions: [],
+  };
+}
+
+function reconcileListeningSentences(pack, transcriptUnits) {
+  if (!Array.isArray(transcriptUnits) || transcriptUnits.length === 0) {
+    return pack;
+  }
+
+  const existing = Array.isArray(pack.sentences) ? pack.sentences : [];
+  const byExact = new Map();
+  existing.forEach((sentence) => {
+    const key = toText(sentence.original).toLowerCase();
+    if (key && !byExact.has(key)) byExact.set(key, sentence);
+  });
+
+  return {
+    ...pack,
+    sentences: transcriptUnits.map((unit, index) => {
+      const exact = byExact.get(toText(unit).toLowerCase());
+      const positional = existing[index];
+      const candidate = exact || (toText(positional?.original).toLowerCase() === toText(unit).toLowerCase() ? positional : null);
+      return candidate
+        ? { ...candidate, id: candidate.id || `line-${index + 1}`, original: unit }
+        : fallbackListeningSentence(unit, index);
+    }),
+  };
+}
+
+function normalizeListeningPack(data, sourceUrl, transcriptUnits = []) {
   const safeData = data && typeof data === "object" ? data : {};
   const sentences = Array.isArray(safeData.sentences)
     ? safeData.sentences.map(normalizeListeningSentence).filter((item) => item.original)
     : [];
 
-  return {
+  const pack = {
     sourceTitle: toText(safeData.sourceTitle || safeData.title) || "Video Listening Pack",
     sourceUrl: toText(safeData.sourceUrl) || sourceUrl,
     sourceSummary: toText(safeData.sourceSummary || safeData.summary),
@@ -274,6 +355,8 @@ function normalizeListeningPack(data, sourceUrl) {
     },
     recommendedAssets: normalizeGeneratedAssets(safeData.recommendedAssets || safeData.assets, sourceUrl),
   };
+
+  return reconcileListeningSentences(pack, transcriptUnits);
 }
 
 function getClientError(err, fallback) {
@@ -594,7 +677,11 @@ app.post("/api/listening-pack", async (req, res) => {
 
     const fetchedText = sourceText ? "" : await fetchPublicPageText(sourceUrl);
     const availableText = sourceText || fetchedText;
-    const transcriptSentenceCount = countTranscriptLikeSentences(availableText);
+    const transcriptUnits = splitTranscriptUnits(availableText);
+    const transcriptSentenceCount = transcriptUnits.length || countTranscriptLikeSentences(availableText);
+    const numberedTranscriptUnits = transcriptUnits
+      .map((unit, index) => `${index + 1}. ${unit}`)
+      .join("\n");
     const sourceHint = availableText
       ? availableText
       : "No pasted transcript or readable page text was found. If URL context is available, inspect public captions, transcript, page text, description, or visible text.";
@@ -610,6 +697,9 @@ ${sourceUrl || "No URL provided"}
 
 Transcript or pasted text:
 ${sourceHint}
+
+Transcript sentence units to preserve exactly:
+${numberedTranscriptUnits || "No reliable sentence units were detected."}
 
 Return ONLY raw JSON.
 Do not use markdown.
@@ -668,8 +758,8 @@ JSON format:
 
 Rules:
 1. Prefer daily-life, general conversation, plans, feelings, reactions, asking for help, explaining what happened, and small talk.
-2. Turn every meaningful spoken sentence from the available transcript into a sentence training unit. Do not only choose highlights. The learner should be able to study and test the whole video sentence by sentence.
-3. If the transcript is very long, keep the original order and merge only tiny fragments that cannot stand alone as listening units.
+2. If numbered transcript sentence units are provided, return exactly one sentences item for every numbered unit, in the same order. Do not skip, merge, summarize, or replace them with highlights.
+3. For each sentences item, original must match the corresponding numbered transcript sentence exactly.
 4. Do not invent direct quotes if the source/transcript is not accessible. If only a topic is accessible, create a clearly adapted natural practice pack and say that in sourceSummary.
 5. original is the clean transcript sentence.
 6. naturalSpeech shows how it may sound in spoken English: gonna, wanna, weak forms, linking, reduced words. Keep it readable.
@@ -696,7 +786,7 @@ Rules:
     const rawText = await generateTextContent(prompt);
 
     const data = safeParseJson(rawText);
-    const pack = normalizeListeningPack(data, sourceUrl);
+    const pack = normalizeListeningPack(data, sourceUrl, transcriptUnits);
 
     if (pack.sentences.length === 0) {
       return res.status(422).json({
