@@ -3444,7 +3444,6 @@ function ListenPage({
   const [sourceMode, setSourceMode] = useState('video');
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceText, setSourceText] = useState('');
-  const [sourceFileLabel, setSourceFileLabel] = useState('');
   const [fileLoading, setFileLoading] = useState(false);
   const [packLoading, setPackLoading] = useState(false);
   const [activePack, setActivePack] = useState(() => normalizeListeningPackForClient((listeningPacks || [])[0]));
@@ -3673,7 +3672,6 @@ function ListenPage({
       const extractedText = toText(data.text);
       sourceTextRef.current = extractedText;
       setSourceText(extractedText);
-      setSourceFileLabel(`Uploaded transcript file · ${data.sentenceCount || 0} sentence unit(s)`);
       setNotice?.({
         type: 'success',
         message: `Transcript file loaded. ${data.sentenceCount || 0} sentence unit(s) detected.`,
@@ -3940,7 +3938,7 @@ function ListenPage({
                     }}
                   />
                   <FileText size={18} />
-                  <span>{fileLoading ? 'Reading file...' : sourceFileLabel || 'Upload transcript, captions, PDF, or DOCX'}</span>
+                  <span>{fileLoading ? 'Reading file...' : 'Choose transcript, captions, PDF, or DOCX file'}</span>
                 </label>
                 <label>Or Paste Transcript / Captions</label>
                 <textarea
@@ -3948,7 +3946,6 @@ function ListenPage({
                   onChange={(e) => {
                     sourceTextRef.current = e.target.value;
                     setSourceText(e.target.value);
-                    if (!e.target.value.trim()) setSourceFileLabel('');
                   }}
                   placeholder="Paste the full transcript or captions here. The app will split every sentence for listening practice."
                 />
