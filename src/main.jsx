@@ -3945,8 +3945,8 @@ function ListenPage({
                     >
                       <span>{index + 1}</span>
                       <div>
-                        <strong>{revealedLines[sentence.id] ? sentence.original : 'Listen first, then reveal'}</strong>
-                        <p>{sentence.functionName || sentence.pattern || 'Daily spoken English'}</p>
+                        <strong>{revealedLines[sentence.id] ? sentence.original : sentence.functionName || sentence.pattern || 'Daily spoken English'}</strong>
+                        <p>{revealedLines[sentence.id] ? sentence.functionName || sentence.pattern : sentence.pattern || sentence.listeningProblem || 'Click to study this line'}</p>
                       </div>
                     </button>
                   ))}
