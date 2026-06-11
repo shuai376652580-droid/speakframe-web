@@ -20,6 +20,7 @@ import {
   SkipForward,
   Eye,
   EyeOff,
+  FileText,
 } from 'lucide-react';
 import './styles.css';
 
@@ -3443,6 +3444,8 @@ function ListenPage({
   const [sourceMode, setSourceMode] = useState('video');
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceText, setSourceText] = useState('');
+  const [sourceFileName, setSourceFileName] = useState('');
+  const [fileLoading, setFileLoading] = useState(false);
   const [packLoading, setPackLoading] = useState(false);
   const [activePack, setActivePack] = useState(() => normalizeListeningPackForClient((listeningPacks || [])[0]));
   const [activeSentenceIndex, setActiveSentenceIndex] = useState(0);
@@ -3646,6 +3649,42 @@ function ListenPage({
   const overlap = activeSentence ? getListeningOverlap(activeSentence.original, currentDraft) : { caught: [], missed: [], score: 0 };
   const isLoopMode = ['assets', 'recombine', 'structure'].includes(sourceMode);
   const sentenceStepLabels = ['Listen', 'Chunks', 'Swap', 'Final'];
+
+  async function uploadListeningSourceFile(file) {
+    if (!file || fileLoading) return;
+
+    setFileLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${API_BASE}/api/listening-source-file`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await readApiJson(res, 'Transcript file upload failed');
+
+      if (!res.ok || data.error) {
+        throw new Error(data.detail || data.error || 'Transcript file upload failed');
+      }
+
+      setSourceText(toText(data.text));
+      setSourceFileName(toText(data.fileName) || file.name);
+      setNotice?.({
+        type: 'success',
+        message: `Transcript loaded from ${toText(data.fileName) || file.name}. ${data.sentenceCount || 0} sentence unit(s) detected.`,
+      });
+    } catch (err) {
+      console.error('uploadListeningSourceFile error:', err);
+      setNotice?.({
+        type: 'error',
+        message: getFriendlyApiError(err, 'Transcript file upload failed. Try .txt, .srt, .vtt, .md, .pdf, or .docx.'),
+      });
+    } finally {
+      setFileLoading(false);
+    }
+  }
 
   async function generateListeningPack() {
     if (packLoading) return;
@@ -3885,7 +3924,22 @@ function ListenPage({
                   onChange={(e) => setSourceUrl(e.target.value)}
                   placeholder="Paste YouTube, blog, course, or public link..."
                 />
-                <label>Transcript / Captions</label>
+                <label>Transcript / Captions File</label>
+                <label className={`file-upload-box ${fileLoading ? 'is-loading' : ''}`}>
+                  <input
+                    type="file"
+                    accept=".txt,.srt,.vtt,.md,.pdf,.docx,text/plain,text/vtt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    disabled={fileLoading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      uploadListeningSourceFile(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <FileText size={18} />
+                  <span>{fileLoading ? 'Reading file...' : sourceFileName || 'Upload transcript, captions, PDF, or DOCX'}</span>
+                </label>
+                <label>Or Paste Transcript / Captions</label>
                 <textarea
                   value={sourceText}
                   onChange={(e) => setSourceText(e.target.value)}

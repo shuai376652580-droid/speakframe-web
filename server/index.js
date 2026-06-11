@@ -2,6 +2,9 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import multer from "multer";
+import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
 import { fileURLToPath, pathToFileURL } from "url";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
@@ -17,6 +20,11 @@ const distPath = path.resolve(__dirname, "..", "dist");
 
 app.use(cors());
 app.use(express.json({ limit: "15mb" }));
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
 
 const textAi = new OpenAI({
   apiKey: decryptSecret(process.env.TEXT_API_KEY),
@@ -154,6 +162,51 @@ function countTranscriptLikeSentences(text) {
     .filter((line) => /[a-zA-Z]{3,}/.test(line))
     .filter((line) => line.length >= 12 && line.length <= 260)
     .length;
+}
+
+function cleanTranscriptText(text) {
+  return toText(text)
+    .replace(/\r/g, "\n")
+    .replace(/WEBVTT[^\n]*/gi, "")
+    .replace(/\d{1,2}:\d{2}(?::\d{2})?[,.]\d{1,3}\s*-->\s*\d{1,2}:\d{2}(?::\d{2})?[,.]\d{1,3}/g, "\n")
+    .replace(/\d{1,2}:\d{2}(?::\d{2})?\s*[-–]\s*\d{1,2}:\d{2}(?::\d{2})?/g, "\n")
+    .replace(/^\s*\d+\s*$/gm, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function extractTextFromUpload(file) {
+  if (!file?.buffer) {
+    throw new Error("No file uploaded.");
+  }
+
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const mime = toText(file.mimetype).toLowerCase();
+
+  if ([".txt", ".srt", ".vtt", ".md", ".csv"].includes(ext) || mime.startsWith("text/")) {
+    return cleanTranscriptText(file.buffer.toString("utf8"));
+  }
+
+  if (ext === ".pdf" || mime === "application/pdf") {
+    const parser = new PDFParse({ data: file.buffer });
+    try {
+      const parsed = await parser.getText();
+      return cleanTranscriptText(parsed.text);
+    } finally {
+      await parser.destroy();
+    }
+  }
+
+  if (
+    ext === ".docx" ||
+    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
+    const parsed = await mammoth.extractRawText({ buffer: file.buffer });
+    return cleanTranscriptText(parsed.value);
+  }
+
+  throw new Error("Unsupported file type. Upload .txt, .srt, .vtt, .md, .pdf, or .docx.");
 }
 
 async function fetchPublicPageText(url) {
@@ -653,6 +706,33 @@ Rules:
       "Text asset extraction failed",
       "Text asset extraction failed. Please check the server connection and API key."
     );
+  }
+});
+
+app.post("/api/listening-source-file", upload.single("file"), async (req, res) => {
+  try {
+    const text = await extractTextFromUpload(req.file);
+    const transcriptUnits = splitTranscriptUnits(text);
+
+    if (!text || transcriptUnits.length === 0) {
+      return res.status(422).json({
+        error: "No transcript text found",
+        detail: "I could not extract usable English transcript text from this file.",
+      });
+    }
+
+    res.json({
+      fileName: req.file?.originalname || "uploaded-file",
+      text,
+      sentenceCount: transcriptUnits.length,
+      charCount: text.length,
+    });
+  } catch (err) {
+    console.error("Listening source file error:", err);
+    res.status(400).json({
+      error: "File parsing failed",
+      detail: getClientError(err, err.message || "File parsing failed.").detail,
+    });
   }
 });
 

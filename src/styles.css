@@ -285,6 +285,10 @@ nav { display: grid; gap: 18px; }
 .video-lab-builder label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 900; }
 .video-lab-builder input, .video-lab-builder textarea { width: 100%; border: 1px solid var(--line); border-radius: 13px; padding: 12px; background: white; outline: 0; }
 .video-lab-builder textarea { min-height: 130px; resize: vertical; }
+.file-upload-box { width: 100%; border: 1px dashed var(--primary-soft); border-radius: 14px; padding: 13px 14px; background: #fffdf8; color: var(--text); display: flex; align-items: center; gap: 10px; cursor: pointer; text-transform: none !important; letter-spacing: 0 !important; font-size: 14px !important; font-weight: 800 !important; }
+.file-upload-box:hover { border-color: var(--primary); background: #fff5eb; }
+.file-upload-box input { display: none; }
+.file-upload-box.is-loading { opacity: .65; cursor: wait; }
 .daily-feed-list { display: grid; gap: 10px; border: 1px solid var(--line); background: #fffaf3; border-radius: 18px; padding: 14px; }
 .listen-loop-panel { display: grid; gap: 10px; border: 1px solid var(--line); background: #fffaf3; border-radius: 18px; padding: 14px; }
 .mode-switch.compact { grid-template-columns: 1fr; gap: 8px; margin: 0; }
