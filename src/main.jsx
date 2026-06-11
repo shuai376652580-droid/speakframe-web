@@ -3934,7 +3934,7 @@ function ListenPage({
                     <div>
                       <p className="eyebrow">3 · Sentence Units</p>
                       <h3>Study Lines</h3>
-                      <p>{safePack.sentences.length} high-value line(s)</p>
+                      <p>{safePack.sentences.length} transcript sentence unit(s)</p>
                     </div>
                   </div>
                   {safePack.sentences.map((sentence, index) => (
@@ -4065,7 +4065,7 @@ function ListenPage({
             {safePack.sentences.length === 0 ? (
               <EmptyState
                 title="Generate a listening pack"
-                text="Paste a video link or transcript. The app will turn it into sentence-level listening, chunk drills, sentence function analysis, replacement practice, final summary scoring, and saveable assets."
+                text="Paste a video link or transcript. The app will turn the full transcript into sentence-level listening, analysis, testing, and a small set of worth-saving assets."
               />
             ) : (
               <>

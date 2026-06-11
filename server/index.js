@@ -256,7 +256,7 @@ function normalizeListeningPack(data, sourceUrl) {
     sourceSummary: toText(safeData.sourceSummary || safeData.summary),
     listeningGoal: toText(safeData.listeningGoal) || "Understand natural daily English and reuse the best expressions.",
     beforeListening: toTextArray(safeData.beforeListening || safeData.predictionPrompts),
-    sentences: sentences.slice(0, 12),
+    sentences,
     finalTask: {
       prompt:
         toText(safeData.finalTask?.prompt) ||
@@ -658,20 +658,21 @@ JSON format:
 
 Rules:
 1. Prefer daily-life, general conversation, plans, feelings, reactions, asking for help, explaining what happened, and small talk.
-2. Extract 6-10 high-value sentences from the source. If the source has more text, choose the most useful lines for real listening and speaking.
-3. Do not invent direct quotes if the source/transcript is not accessible. If only a topic is accessible, create a clearly adapted natural practice pack and say that in sourceSummary.
-4. original is the clean transcript sentence.
-5. naturalSpeech shows how it may sound in spoken English: gonna, wanna, weak forms, linking, reduced words. Keep it readable.
-6. listeningProblem must explain why a learner may miss it: weak form, linking, speed, chunk boundary, unfamiliar pattern, or meaning prediction.
-7. chunks must be short listenable units, not isolated vocabulary only.
-8. pattern must be reusable with [slots].
-9. whyUse explains the communication function, not grammar theory.
-10. extensionExamples must include 4-6 natural variations.
-11. replacementDrills must include exactly 10 fill-in or swap prompts when possible.
-12. saveSuggestions should include 1-3 assets for each strong sentence.
-13. recommendedAssets should include 4-8 best assets from the full pack.
-14. All explanation fields except meaningZh can be English. meaningZh must be concise Chinese.
-15. Asset recommendedType must be one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
+2. Turn every meaningful spoken sentence from the available transcript into a sentence training unit. Do not only choose highlights. The learner should be able to study and test the whole video sentence by sentence.
+3. If the transcript is very long, keep the original order and merge only tiny fragments that cannot stand alone as listening units.
+4. Do not invent direct quotes if the source/transcript is not accessible. If only a topic is accessible, create a clearly adapted natural practice pack and say that in sourceSummary.
+5. original is the clean transcript sentence.
+6. naturalSpeech shows how it may sound in spoken English: gonna, wanna, weak forms, linking, reduced words. Keep it readable.
+7. listeningProblem must explain why a learner may miss it: weak form, linking, speed, chunk boundary, unfamiliar pattern, or meaning prediction.
+8. chunks must be short listenable units, not isolated vocabulary only.
+9. pattern must be reusable with [slots].
+10. whyUse explains the communication function, not grammar theory.
+11. extensionExamples must include 4-6 natural variations for reusable sentences. For simple filler sentences, 1-2 variations are enough.
+12. replacementDrills must include exactly 10 fill-in or swap prompts when the sentence is reusable. For simple filler sentences, return fewer practical prompts.
+13. saveSuggestions should only appear for sentences that contain reusable language worth saving.
+14. recommendedAssets should include only the 4-8 best assets distilled from the full video, not every sentence.
+15. All explanation fields except meaningZh can be English. meaningZh must be concise Chinese.
+16. Asset recommendedType must be one of: "Pattern", "Chunk", "Native Expression", "Question Pattern", "Framework", "Useful Sentence", "Poetic Expression".
 `;
 
     if (sourceUrl && !availableText) {
